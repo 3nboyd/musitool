@@ -1,0 +1,14 @@
+<svg width="240" height="240" viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="mt_grad" x1="24" y1="24" x2="216" y2="216" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#0ea5e9"/>
+    </linearGradient>
+  </defs>
+  <rect x="12" y="12" width="216" height="216" rx="54" fill="#020617"/>
+  <rect x="12" y="12" width="216" height="216" rx="54" stroke="url(#mt_grad)" stroke-opacity="0.5" stroke-width="4"/>
+  <path d="M66 162C66 151.507 75.402 143 87 143C98.598 143 108 151.507 108 162C108 172.493 98.598 181 87 181C75.402 181 66 172.493 66 162Z" fill="#22d3ee"/>
+  <path d="M168 151C168 141.612 176.954 134 188 134C199.046 134 208 141.612 208 151C208 160.388 199.046 168 188 168C176.954 168 168 160.388 168 151Z" fill="#38bdf8"/>
+  <path d="M108 162V72L168 58V151" stroke="url(#mt_grad)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M54 96C78 78 102 114 126 96C150 78 174 114 198 96" stroke="#67e8f9" stroke-opacity="0.8" stroke-width="6" stroke-linecap="round"/>
+</svg>

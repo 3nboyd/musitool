@@ -14,9 +14,9 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MusiTool - Music Analysis Studio",
+  title: "MusiTone",
   description:
-    "Web-based music engineering workspace with live analysis, theory recommendations, metronome and MIDI tools.",
+    "MusiTone: local-first music analysis and improvisation workspace for live musicians.",
 };
 
 export default function RootLayout({

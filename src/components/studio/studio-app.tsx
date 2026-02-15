@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { AnalysisPanel } from "@/components/studio/analysis-panel";
 import { FormSheetPanel } from "@/components/studio/form-sheet-panel";
 import { MidiPanel } from "@/components/studio/midi-panel";
@@ -317,13 +318,29 @@ export function StudioApp() {
       <SpectrumBackdrop data={frame?.spectrum ?? []} />
       <div className="pointer-events-none fixed inset-0 z-[1] bg-slate-950/35" />
       <main className="relative z-10 mx-auto max-w-7xl space-y-4">
-        <header className="space-y-2">
-          <p className="text-xs uppercase tracking-[0.28em] text-cyan-300/90">MusiTool</p>
-          <h1 className="text-3xl font-semibold tracking-tight">Music Analysis Studio</h1>
-          <p className="max-w-4xl text-sm text-slate-300">
-            Live audio and MIDI diagnostics for improvisers: oscilloscope, circular tuner, tempo consistency,
-            theory guidance, form mapping, and phrase capture.
-          </p>
+        <header className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl border border-slate-700/80 bg-slate-950/75 p-1.5">
+              <Image
+                src="/musitone-logo.svg"
+                alt="MusiTone logo"
+                width={54}
+                height={54}
+                className="h-[54px] w-[54px]"
+                priority
+              />
+            </div>
+            <div>
+              <h1 className="text-3xl font-semibold tracking-tight text-slate-100">MusiTone</h1>
+              <p className="text-sm text-slate-300">Designed by Noah Boyd</p>
+            </div>
+          </div>
+          <a
+            href="mailto:noahboydmusic@gmail.com"
+            className="rounded-md border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-200 transition hover:border-cyan-400 hover:bg-cyan-500/20"
+          >
+            Contact Me
+          </a>
         </header>
 
         <TransportPanel

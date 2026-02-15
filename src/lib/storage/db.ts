@@ -8,7 +8,7 @@ export interface SessionRecord {
   data: SessionState;
 }
 
-class MusiToolDb extends Dexie {
+class MusiToneDb extends Dexie {
   sessions!: Table<SessionRecord, string>;
 
   constructor() {
@@ -19,15 +19,15 @@ class MusiToolDb extends Dexie {
   }
 }
 
-let dbInstance: MusiToolDb | null = null;
+let dbInstance: MusiToneDb | null = null;
 
-function getDb(): MusiToolDb {
+function getDb(): MusiToneDb {
   if (typeof window === "undefined") {
     throw new Error("IndexedDB is only available in the browser.");
   }
 
   if (!dbInstance) {
-    dbInstance = new MusiToolDb();
+    dbInstance = new MusiToneDb();
   }
 
   return dbInstance;

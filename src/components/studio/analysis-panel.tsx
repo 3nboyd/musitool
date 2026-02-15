@@ -44,7 +44,7 @@ interface DisplayLane extends IncomingLane {
   cooldownTicks: number;
 }
 
-const MAX_COOLDOWN_TICKS = 5;
+const MAX_COOLDOWN_TICKS = 12;
 
 const TOLERANCE_PROFILES: Record<
   TunerTolerancePreset,
@@ -90,7 +90,15 @@ export function AnalysisPanel({
     () => recommendations.filter((item) => item.type === "scale").slice(0, 5),
     [recommendations]
   );
-  const featuredArpLane = useMemo(() => buildFeaturedArpLane(theoryContext), [theoryContext]);
+  const featuredArpLane = useMemo(
+    () =>
+      buildFeaturedArpLane({
+        keyGuess: theoryContext.keyGuess,
+        scaleGuess: theoryContext.scaleGuess,
+        formSectionLabel: theoryContext.formSectionLabel ?? null,
+      }),
+    [theoryContext.formSectionLabel, theoryContext.keyGuess, theoryContext.scaleGuess]
+  );
   const compactRecommendations = useMemo(
     () => recommendations.filter((item) => item.type !== "scale").slice(0, 6),
     [recommendations]
@@ -125,7 +133,7 @@ export function AnalysisPanel({
   }, [incomingLanes]);
 
   return (
-    <Panel title="Signal Lab" subtitle="Tuner, theory assistant, and improv lines">
+    <Panel title="Signal Lab">
       <div className="grid gap-3 lg:grid-cols-[1.1fr_1fr]">
         <div className="rounded-xl border border-slate-800/80 bg-slate-950/60 p-3">
           <p className="mb-2 text-xs uppercase tracking-wide text-slate-500">Tuner</p>
@@ -148,8 +156,7 @@ export function AnalysisPanel({
                 </div>
               </div>
 
-              <div className="absolute left-2 top-2 z-20 h-16 w-32 rounded-md border border-slate-700/90 bg-slate-950/90 p-1.5">
-                <p className="text-[10px] uppercase tracking-wide text-slate-400">Tolerance</p>
+              <div className="absolute left-2 top-2 z-20">
                 <select
                   value={tunerSettings.tolerancePreset}
                   onChange={(event) => {
@@ -161,7 +168,7 @@ export function AnalysisPanel({
                       yellowRangeCents: profile.yellowRangeCents,
                     });
                   }}
-                  className="mt-1 h-7 w-full rounded border border-slate-700 bg-slate-900 px-1 text-[11px] text-slate-100"
+                  className="h-8 w-32 rounded border border-slate-700 bg-slate-900/95 px-1 text-[11px] text-slate-100"
                 >
                   {(Object.keys(TOLERANCE_PROFILES) as TunerTolerancePreset[]).map((preset) => (
                     <option key={preset} value={preset}>
@@ -171,8 +178,7 @@ export function AnalysisPanel({
                 </select>
               </div>
 
-              <div className="absolute right-2 top-2 z-20 h-16 w-32 rounded-md border border-slate-700/90 bg-slate-950/90 p-1.5">
-                <p className="text-[10px] uppercase tracking-wide text-slate-400">Temperament</p>
+              <div className="absolute right-2 top-2 z-20">
                 <select
                   value={tunerSettings.temperament}
                   onChange={(event) =>
@@ -180,7 +186,7 @@ export function AnalysisPanel({
                       temperament: event.target.value as TunerTemperament,
                     })
                   }
-                  className="mt-1 h-7 w-full rounded border border-slate-700 bg-slate-900 px-1 text-[11px] text-slate-100"
+                  className="h-8 w-32 rounded border border-slate-700 bg-slate-900/95 px-1 text-[11px] text-slate-100"
                 >
                   {(Object.keys(TEMPERAMENT_LABELS) as TunerTemperament[]).map((temperament) => (
                     <option key={temperament} value={temperament}>
@@ -190,8 +196,7 @@ export function AnalysisPanel({
                 </select>
               </div>
 
-              <div className="absolute bottom-2 left-2 z-20 h-16 w-32 rounded-md border border-slate-700/90 bg-slate-950/90 p-1.5">
-                <p className="text-[10px] uppercase tracking-wide text-slate-400">A4 Ref</p>
+              <div className="absolute bottom-2 left-2 z-20">
                 <select
                   value={tunerSettings.a4Hz}
                   onChange={(event) =>
@@ -199,7 +204,7 @@ export function AnalysisPanel({
                       a4Hz: Number(event.target.value) || 440,
                     })
                   }
-                  className="mt-1 h-7 w-full rounded border border-slate-700 bg-slate-900 px-1 text-[11px] text-slate-100"
+                  className="h-8 w-32 rounded border border-slate-700 bg-slate-900/95 px-1 text-[11px] text-slate-100"
                 >
                   {A4_OPTIONS.map((hz) => (
                     <option key={hz} value={hz}>
@@ -210,11 +215,10 @@ export function AnalysisPanel({
               </div>
 
               <div className="pointer-events-none absolute bottom-2 right-2 z-20 h-16 w-32 rounded-md border border-slate-700/90 bg-slate-950/90 p-1.5">
-                <p className="text-[10px] uppercase tracking-wide text-slate-400">Pitch</p>
-                <p className="mt-1 truncate text-sm font-semibold text-slate-100">
+                <p className="mt-0.5 truncate text-sm font-semibold text-slate-100">
                   {formatHz(frame?.pitchHz ?? null)}
                 </p>
-                <p className="text-[10px] text-slate-400">{frame?.note ?? "--"}</p>
+                <p className="mt-1 text-[11px] text-slate-300">{frame?.note ?? "--"}</p>
               </div>
             </div>
           </div>
@@ -322,9 +326,9 @@ export function AnalysisPanel({
             {displayLanes.map((lane) => (
               <div
                 key={lane.key}
-                className={`rounded-lg border p-2 transition-all duration-700 ease-out ${
+                className={`rounded-lg border p-2 transition-all duration-[1400ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
                   lane.state === "cooling"
-                    ? "translate-y-1 border-slate-800/70 bg-slate-900/45 opacity-45"
+                    ? "translate-y-2 border-slate-800/70 bg-slate-900/45 opacity-35"
                     : "border-slate-800 bg-slate-900/70 opacity-100"
                 }`}
               >
@@ -381,7 +385,7 @@ function mergeScaleLanes(previous: DisplayLane[], incoming: IncomingLane[]): Dis
       order: index,
       state: "active",
       cooldownTicks: 0,
-      confidence: blendConfidence(prior?.confidence ?? lane.confidence, lane.confidence, 0.4),
+      confidence: blendConfidence(prior?.confidence ?? lane.confidence, lane.confidence, 0.2),
     });
   });
 
@@ -391,7 +395,7 @@ function mergeScaleLanes(previous: DisplayLane[], incoming: IncomingLane[]): Dis
     }
 
     const cooldownTicks = lane.cooldownTicks + 1;
-    const confidence = clamp(lane.confidence * 0.74, 0, 1);
+    const confidence = clamp(lane.confidence * 0.88, 0, 1);
     if (cooldownTicks > MAX_COOLDOWN_TICKS || confidence < 0.16) {
       return;
     }
@@ -419,9 +423,13 @@ function mergeScaleLanes(previous: DisplayLane[], incoming: IncomingLane[]): Dis
   });
 }
 
-function buildFeaturedArpLane(context: TheoryContext): IncomingLane {
-  const root = detectChordRoot(context.chordGuess) || context.keyGuess || "C";
-  const quality = chordQuality(context.chordGuess);
+function buildFeaturedArpLane(context: {
+  keyGuess: string;
+  scaleGuess: string;
+  formSectionLabel: string | null;
+}): IncomingLane {
+  const root = context.keyGuess || "C";
+  const quality = scaleQuality(context.scaleGuess);
 
   let label = `${root} major #4 arpeggio line`;
   let reason = "Lydian-style #4 color line for bright modern phrasing.";
@@ -458,23 +466,15 @@ function buildNotesFromIntervals(root: string, intervals: string[]): string[] {
     .filter((note) => note.length > 0);
 }
 
-function detectChordRoot(chordGuess: string): string | null {
-  const match = chordGuess.match(/^[A-G](?:#|b)?/);
-  if (!match) {
-    return null;
-  }
-  return Note.simplify(match[0]);
-}
-
-function chordQuality(chordGuess: string): "major" | "minor" | "dominant" | "half-diminished" {
-  const token = chordGuess.replace(/^[A-G](?:#|b)?/i, "").toLowerCase();
-  if (token.includes("m7b5") || token.includes("half-diminished") || token.includes("o/")) {
+function scaleQuality(scaleGuess: string): "major" | "minor" | "dominant" | "half-diminished" {
+  const token = scaleGuess.toLowerCase();
+  if (token.includes("locrian")) {
     return "half-diminished";
   }
-  if (token.includes("7") && !token.includes("maj") && !token.startsWith("m")) {
+  if (token.includes("mixolydian")) {
     return "dominant";
   }
-  if (token.startsWith("m") || token.includes("min")) {
+  if (token.includes("minor") || token.includes("dorian") || token.includes("phrygian")) {
     return "minor";
   }
   return "major";

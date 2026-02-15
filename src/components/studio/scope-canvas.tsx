@@ -4,9 +4,17 @@ import { useEffect, useRef } from "react";
 
 interface ScopeCanvasProps {
   data: number[];
+  width?: number;
+  height?: number;
+  className?: string;
 }
 
-export function ScopeCanvas({ data }: ScopeCanvasProps) {
+export function ScopeCanvas({
+  data,
+  width = 640,
+  height = 180,
+  className = "h-36 w-full rounded-lg border border-slate-800 bg-slate-950",
+}: ScopeCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -23,7 +31,7 @@ export function ScopeCanvas({ data }: ScopeCanvasProps) {
     const { width, height } = canvas;
     ctx.clearRect(0, 0, width, height);
 
-    ctx.fillStyle = "#020617";
+    ctx.fillStyle = "rgba(2,6,23,0.55)";
     ctx.fillRect(0, 0, width, height);
 
     ctx.strokeStyle = "#94a3b8";
@@ -53,9 +61,9 @@ export function ScopeCanvas({ data }: ScopeCanvasProps) {
   return (
     <canvas
       ref={canvasRef}
-      width={640}
-      height={180}
-      className="h-36 w-full rounded-lg border border-slate-800 bg-slate-950"
+      width={width}
+      height={height}
+      className={className}
     />
   );
 }

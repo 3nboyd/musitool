@@ -6,6 +6,7 @@ import { FormSheetPanel } from "@/components/studio/form-sheet-panel";
 import { MidiPanel } from "@/components/studio/midi-panel";
 import { SessionPanel } from "@/components/studio/session-panel";
 import { SpectrumBackdrop } from "@/components/studio/spectrum-backdrop";
+import { TempoPanel } from "@/components/studio/tempo-panel";
 import { TheoryPanel } from "@/components/studio/theory-panel";
 import { TransportPanel } from "@/components/studio/transport-panel";
 import { useAudioAnalysis } from "@/hooks/useAudioAnalysis";
@@ -17,9 +18,9 @@ import { exportChart } from "@/lib/theory/chart-export";
 import { useStudioStore } from "@/store/useStudioStore";
 import { SessionState, Subdivision } from "@/types/studio";
 
-type RightPanelId = "theory" | "form" | "midi" | "session";
+type RightPanelId = "form" | "tempo" | "theory" | "midi" | "session";
 
-const DEFAULT_RIGHT_PANEL_ORDER: RightPanelId[] = ["theory", "form", "midi", "session"];
+const DEFAULT_RIGHT_PANEL_ORDER: RightPanelId[] = ["form", "tempo", "theory", "midi", "session"];
 
 export function StudioApp() {
   const frame = useStudioStore((state) => state.latestFrame);
@@ -34,6 +35,7 @@ export function StudioApp() {
   const createSessionSnapshot = useStudioStore((state) => state.createSessionSnapshot);
   const applySession = useStudioStore((state) => state.applySession);
   const setTheory = useStudioStore((state) => state.setTheory);
+  const setTheoryControl = useStudioStore((state) => state.setTheoryControl);
   const analysisSettings = useStudioStore((state) => state.analysisSettings);
   const updateAnalysisSettings = useStudioStore((state) => state.updateAnalysisSettings);
 
@@ -257,7 +259,6 @@ export function StudioApp() {
 
   const rightPanels = useMemo<Record<RightPanelId, ReactNode>>(
     () => ({
-      theory: <TheoryPanel context={theoryContext} recommendations={recommendations} memory={theoryMemory} />,
       form: (
         <FormSheetPanel
           expandedBars={theoryMemory.expandedBars}
@@ -276,6 +277,42 @@ export function StudioApp() {
           onUnlinkCompressedSectionRepeat={unlinkCompressedSectionRepeat}
           onDownload={(format, condensed) => {
             void downloadChartSheet(format, condensed);
+          }}
+        />
+      ),
+      tempo: (
+        <TempoPanel
+          frameHistory={frameHistory}
+          liveTempoBpm={liveTempo}
+          desiredTempoBpm={analysisSettings.targetTempoBpm}
+          onChangeDesiredTempo={(bpm) => {
+            updateAnalysisSettings({
+              targetTempoBpm: bpm,
+            });
+          }}
+        />
+      ),
+      theory: (
+        <TheoryPanel
+          context={theoryContext}
+          recommendations={recommendations}
+          memory={theoryMemory}
+          onSetKeyControlMode={(mode) => {
+            setTheoryControl({
+              keyControlMode: mode,
+            });
+          }}
+          onSetAutoDetectKeyChanges={(value) => {
+            setTheoryControl({
+              autoDetectKeyChanges: value,
+            });
+          }}
+          onSetManualKeyScale={(key, scale) => {
+            setTheoryControl({
+              manualKey: key,
+              manualScale: scale,
+              keyControlMode: "manual",
+            });
           }}
         />
       ),
@@ -324,12 +361,15 @@ export function StudioApp() {
       ),
     }),
     [
+      analysisSettings.targetTempoBpm,
       clearRecordedEvents,
       downloadChartSheet,
       exportSessionJson,
+      frameHistory,
       importSessionJson,
       insertFormSheetBar,
       loadStoredSession,
+      liveTempo,
       midi,
       midiEvents,
       quantizeRecorded,
@@ -346,8 +386,10 @@ export function StudioApp() {
       setBarsPerPage,
       setFormDisplayMode,
       setSessionName,
+      setTheoryControl,
       theoryContext,
       theoryMemory,
+      updateAnalysisSettings,
       toggleMidiRecording,
       unlinkCompressedSectionRepeat,
       updateCompressedSectionBars,
@@ -359,9 +401,10 @@ export function StudioApp() {
   const noticeText = useMemo(() => notice, [notice]);
 
   return (
-    <div className="relative min-h-screen bg-slate-950 px-4 py-6 text-slate-100 md:px-8">
+    <div className="relative min-h-screen px-4 py-6 text-slate-100 md:px-8">
       <SpectrumBackdrop data={frame?.spectrum ?? []} />
-      <main className="relative mx-auto max-w-7xl space-y-4">
+      <div className="pointer-events-none fixed inset-0 z-[1] bg-slate-950/35" />
+      <main className="relative z-10 mx-auto max-w-7xl space-y-4">
         <header className="space-y-2">
           <p className="text-xs uppercase tracking-[0.28em] text-cyan-300/90">MusiTool</p>
           <h1 className="text-3xl font-semibold tracking-tight">Music Analysis Studio</h1>
@@ -394,16 +437,8 @@ export function StudioApp() {
           <div className="space-y-4">
             <AnalysisPanel
               frame={frame}
-              frameHistory={frameHistory}
-              liveTempoBpm={liveTempo}
-              desiredTempoBpm={analysisSettings.targetTempoBpm}
               recommendations={recommendations}
               tunerSettings={analysisSettings.tuner}
-              onChangeDesiredTempo={(bpm) => {
-                updateAnalysisSettings({
-                  targetTempoBpm: bpm,
-                });
-              }}
               onUpdateTunerSettings={(update) => {
                 updateAnalysisSettings({
                   tuner: {
@@ -485,10 +520,12 @@ function computeStableTempo(samples: number[]): number | null {
 
 function rightPanelLabel(id: RightPanelId): string {
   switch (id) {
-    case "theory":
-      return "Theory";
     case "form":
       return "Form";
+    case "tempo":
+      return "Tempo";
+    case "theory":
+      return "Theory";
     case "midi":
       return "MIDI";
     case "session":

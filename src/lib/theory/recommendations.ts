@@ -48,6 +48,7 @@ interface StableScaleDecision {
 
 interface ChordGuess {
   chord: string;
+  formChord: string;
   confidence: number;
 }
 
@@ -74,8 +75,17 @@ export function analyzeTheoryState(input: TheoryAnalysisInput): {
   const memory = normalizeMemory(input.previousMemory);
   const normalized = normalizeNotes(input.noteHistory);
 
-  const candidates = rankScaleCandidates(normalized);
-  const stable = chooseStableScale(candidates, memory, input.nowMs, input.bpm);
+  const manualMode = memory.keyControlMode === "manual";
+  const candidates = manualMode ? [] : rankScaleCandidates(normalized);
+  const stable = manualMode
+    ? chooseManualScale(memory, input.nowMs)
+    : chooseStableScale(
+        candidates,
+        memory,
+        input.nowMs,
+        input.bpm,
+        memory.autoDetectKeyChanges
+      );
   const stableScale = Scale.get(`${stable.keyGuess} ${stable.scaleGuess}`);
   const scaleNotes = stableScale.notes.length > 0 ? stableScale.notes : Scale.get("C major").notes;
 
@@ -228,6 +238,10 @@ function normalizeMemory(memory: TheoryMemory | null | undefined): TheoryMemory 
     expandedToCompressedMap: memory.expandedToCompressedMap ?? [],
     barsPerPage: memory.barsPerPage ?? 32,
     displayMode: memory.displayMode ?? "compressed",
+    keyControlMode: memory.keyControlMode ?? "auto",
+    autoDetectKeyChanges: memory.autoDetectKeyChanges ?? true,
+    manualKey: memory.manualKey ?? memory.stableKey ?? "C",
+    manualScale: memory.manualScale ?? memory.stableScale ?? "major",
     currentExpandedBarIndex: memory.currentExpandedBarIndex ?? 0,
     chordTimeline: memory.chordTimeline ?? [],
     formPatterns: memory.formPatterns ?? [],
@@ -300,7 +314,8 @@ function chooseStableScale(
   rankedCandidates: ScaleCandidate[],
   memory: TheoryMemory,
   nowMs: number,
-  bpm: number | null
+  bpm: number | null,
+  autoDetectKeyChanges: boolean
 ): StableScaleDecision {
   const best = rankedCandidates[0];
   if (!best) {
@@ -320,6 +335,21 @@ function chooseStableScale(
 
   const same =
     best.keyGuess === memory.stableKey && best.scaleGuess === memory.stableScale;
+
+  if (!autoDetectKeyChanges) {
+    const retained = rankedCandidates.find(
+      (candidate) =>
+        candidate.keyGuess === memory.stableKey && candidate.scaleGuess === memory.stableScale
+    );
+    return {
+      keyGuess: memory.stableKey,
+      scaleGuess: memory.stableScale,
+      confidence: retained
+        ? memory.keyConfidence * 0.75 + retained.confidence * 0.25
+        : clamp(memory.keyConfidence * 0.98, 0.35, 0.98),
+      lastKeyChangeAt: memory.lastKeyChangeAt,
+    };
+  }
 
   if (same) {
     return {
@@ -357,10 +387,25 @@ function chooseStableScale(
   };
 }
 
+function chooseManualScale(memory: TheoryMemory, nowMs: number): StableScaleDecision {
+  const keyGuess = ROOTS.includes(memory.manualKey) ? memory.manualKey : "C";
+  const fallbackScale = memory.manualScale || "major";
+  const validScale = Scale.get(`${keyGuess} ${fallbackScale}`);
+  const scaleGuess = validScale.notes.length > 0 ? fallbackScale : "major";
+
+  return {
+    keyGuess,
+    scaleGuess,
+    confidence: 1,
+    lastKeyChangeAt: nowMs,
+  };
+}
+
 function inferChordGuess(noteHistory: string[], chordCandidates: string[]): ChordGuess {
   if (chordCandidates.length === 0) {
     return {
       chord: "C",
+      formChord: "C",
       confidence: 0.4,
     };
   }
@@ -374,6 +419,7 @@ function inferChordGuess(noteHistory: string[], chordCandidates: string[]): Chor
 
   let best: ChordGuess = {
     chord: chordCandidates[0],
+    formChord: normalizeChordForForm(chordCandidates[0]),
     confidence: 0.4,
   };
 
@@ -396,14 +442,103 @@ function inferChordGuess(noteHistory: string[], chordCandidates: string[]): Chor
     const confidence = clamp(score / 3.2, 0.1, 0.98);
 
     if (confidence > best.confidence) {
+      const enriched = addDetectedExtensions(candidate, chromaSet);
       best = {
-        chord: candidate,
+        chord: enriched,
+        formChord: normalizeChordForForm(enriched),
         confidence,
       };
     }
   }
 
   return best;
+}
+
+function addDetectedExtensions(baseChord: string, chromaSet: Set<number>): string {
+  const parsed = Chord.get(baseChord);
+  const root = Note.simplify(parsed.tonic ?? Note.get(baseChord).pc ?? "C");
+  const rootChroma = Note.chroma(root);
+  if (rootChroma === null) {
+    return baseChord;
+  }
+
+  const hasMinorThird = chromaSet.has(modulo(rootChroma + 3, 12));
+  const hasMajorThird = chromaSet.has(modulo(rootChroma + 4, 12));
+  const hasFlatSeven = chromaSet.has(modulo(rootChroma + 10, 12));
+  const hasMajorSeven = chromaSet.has(modulo(rootChroma + 11, 12));
+  const hasNine = chromaSet.has(modulo(rootChroma + 2, 12));
+  const hasFlatNine = chromaSet.has(modulo(rootChroma + 1, 12));
+  const hasSharpNine = chromaSet.has(modulo(rootChroma + 3, 12));
+  const hasEleven = chromaSet.has(modulo(rootChroma + 5, 12));
+  const hasSharpEleven = chromaSet.has(modulo(rootChroma + 6, 12));
+  const hasThirteen = chromaSet.has(modulo(rootChroma + 9, 12));
+  const hasFlatThirteen = chromaSet.has(modulo(rootChroma + 8, 12));
+
+  const qualityToken = extractChordQualityToken(baseChord);
+  const minorFamily = qualityToken.startsWith("m") && !qualityToken.startsWith("maj");
+  const diminishedFamily = qualityToken.includes("dim") || qualityToken.includes("m7b5");
+  const dominantFamily = qualityToken.includes("7") && !minorFamily && !qualityToken.includes("maj");
+
+  let symbol = baseChord;
+
+  if (diminishedFamily && hasFlatSeven) {
+    symbol = `${root}m7b5`;
+  } else if (minorFamily) {
+    if (hasFlatSeven) {
+      symbol = hasNine ? `${root}m9` : `${root}m7`;
+    }
+  } else if (hasMajorThird || !hasMinorThird) {
+    if (hasMajorSeven) {
+      symbol = hasNine ? `${root}maj9` : `${root}maj7`;
+    } else if (hasFlatSeven) {
+      symbol = hasNine ? `${root}9` : `${root}7`;
+    }
+  }
+
+  const tensions: string[] = [];
+  if (hasFlatNine && dominantFamily) {
+    tensions.push("b9");
+  } else if (hasSharpNine && dominantFamily) {
+    tensions.push("#9");
+  }
+  if (hasSharpEleven) {
+    tensions.push("#11");
+  } else if (hasEleven && symbol.includes("7")) {
+    tensions.push("11");
+  }
+  if (hasFlatThirteen) {
+    tensions.push("b13");
+  } else if (hasThirteen && symbol.includes("7")) {
+    tensions.push("13");
+  }
+
+  if (tensions.length === 0) {
+    return symbol;
+  }
+
+  const deduped = [...new Set(tensions)].slice(0, 2).join(",");
+  return `${symbol}(${deduped})`;
+}
+
+function normalizeChordForForm(chordLabel: string): string {
+  const rootMatch = chordLabel.match(/^[A-G](?:#|b)?/);
+  const root = rootMatch ? rootMatch[0] : "C";
+  const qualityToken = extractChordQualityToken(chordLabel);
+
+  if (qualityToken.includes("m7b5")) {
+    return `${root}m7b5`;
+  }
+  if (qualityToken.includes("dim")) {
+    return `${root}dim`;
+  }
+  if (qualityToken.startsWith("m") && !qualityToken.startsWith("maj")) {
+    return `${root}m`;
+  }
+  if (qualityToken.includes("7")) {
+    return `${root}7`;
+  }
+
+  return root;
 }
 
 function updateProgression(
@@ -430,20 +565,20 @@ function updateProgression(
     };
   }
 
-  if (pendingChord === chordGuess.chord) {
+  if (pendingChord === chordGuess.formChord) {
     pendingChordVotes += 1;
   } else {
-    pendingChord = chordGuess.chord;
+    pendingChord = chordGuess.formChord;
     pendingChordVotes = 1;
   }
 
   if (pendingChordVotes >= 2 && chordGuess.confidence >= 0.42) {
     const last = progression[progression.length - 1];
-    if (last !== chordGuess.chord) {
-      progression.push(chordGuess.chord);
+    if (last !== chordGuess.formChord) {
+      progression.push(chordGuess.formChord);
       chordTimeline.push({
         index: progression.length - 1,
-        chord: chordGuess.chord,
+        chord: chordGuess.formChord,
         confidence: round2(chordGuess.confidence),
       });
     }
@@ -870,28 +1005,38 @@ function buildChordCandidates(key: string, scale: string): string[] {
   }
 
   const majorLike = scale === "major" || scale === "lydian" || scale === "mixolydian";
-  const qualities = majorLike
+  const triadQualities = majorLike
     ? ["", "m", "m", "", "", "m", "dim"]
     : ["m", "dim", "", "m", "m", "", ""];
+  const seventhQualities = majorLike
+    ? ["maj7", "m7", "m7", "maj7", "7", "m7", "m7b5"]
+    : ["m7", "m7b5", "maj7", "m7", "m7", "maj7", "7"];
 
-  return scaleNotes.slice(0, 7).map((note, index) => `${Note.simplify(note)}${qualities[index]}`);
+  const candidates: string[] = [];
+  for (let index = 0; index < 7; index += 1) {
+    const root = Note.simplify(scaleNotes[index]);
+    candidates.push(`${root}${seventhQualities[index]}`);
+    candidates.push(`${root}${triadQualities[index]}`);
+  }
+
+  return candidates;
 }
 
 function fallbackChordCandidates(key: string, scale: string): string[] {
   if (scale === "minor" || scale === "phrygian") {
-    const tonic = `${Note.simplify(key)}m`;
-    const subdominant = `${Note.simplify(Note.transpose(key, "4P"))}m`;
-    const dominant = `${Note.simplify(Note.transpose(key, "5P"))}m`;
-    const leading = `${Note.simplify(Note.transpose(key, "7m"))}dim`;
-    return [tonic, subdominant, dominant, leading];
+    const tonic = `${Note.simplify(key)}m7`;
+    const subdominant = `${Note.simplify(Note.transpose(key, "4P"))}m7`;
+    const dominant = `${Note.simplify(Note.transpose(key, "5P"))}m7`;
+    const leading = `${Note.simplify(Note.transpose(key, "7m"))}m7b5`;
+    return [tonic, `${Note.simplify(key)}m`, subdominant, dominant, leading];
   }
 
-  const tonic = Note.simplify(key);
-  const subdominant = Note.simplify(Note.transpose(key, "4P"));
-  const dominant = Note.simplify(Note.transpose(key, "5P"));
-  const relativeMinor = `${Note.simplify(Note.transpose(key, "6M"))}m`;
+  const tonic = `${Note.simplify(key)}maj7`;
+  const subdominant = `${Note.simplify(Note.transpose(key, "4P"))}maj7`;
+  const dominant = `${Note.simplify(Note.transpose(key, "5P"))}7`;
+  const relativeMinor = `${Note.simplify(Note.transpose(key, "6M"))}m7`;
 
-  return [tonic, subdominant, dominant, relativeMinor];
+  return [tonic, Note.simplify(key), subdominant, dominant, relativeMinor];
 }
 
 function recommendationSignature(recommendations: TheoryRecommendation[]): string {
@@ -973,6 +1118,10 @@ function round2(value: number): number {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function modulo(value: number, divisor: number): number {
+  return ((value % divisor) + divisor) % divisor;
 }
 
 function getKeySwitchHoldMs(bpm: number | null): number {

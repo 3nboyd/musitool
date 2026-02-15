@@ -77,10 +77,15 @@ export interface ExpandedToCompressedMapItem {
 }
 
 export type FormDisplayMode = "compressed" | "expanded";
+export type KeyControlMode = "auto" | "manual";
 
 export interface TheoryMemory {
   stableKey: string;
   stableScale: string;
+  keyControlMode: KeyControlMode;
+  autoDetectKeyChanges: boolean;
+  manualKey: string;
+  manualScale: string;
   keyConfidence: number;
   lastKeyChangeAt: number;
   progression: string[];

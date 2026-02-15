@@ -20,6 +20,10 @@ export function createDefaultTheoryMemory(): TheoryMemory {
   return {
     stableKey: "C",
     stableScale: "major",
+    keyControlMode: "auto",
+    autoDetectKeyChanges: true,
+    manualKey: "C",
+    manualScale: "major",
     keyConfidence: 0.5,
     lastKeyChangeAt: 0,
     progression: [],

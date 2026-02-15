@@ -13,69 +13,95 @@ export function TunerMeter({ cents, greenRange, yellowRange, note }: TunerMeterP
   const ratio = (bounded + 50) / 100;
   const angle = -140 + ratio * 280;
   const radians = (angle * Math.PI) / 180;
-  const center = 88;
-  const radius = 70;
+  const center = 90;
+  const radius = 66;
   const needleX = center + Math.cos(radians) * radius;
   const needleY = center + Math.sin(radians) * radius;
-
-  const statusClass =
-    cents === null
-      ? "border-slate-300 text-slate-200"
-      : absolute <= green
-        ? "border-emerald-300 text-emerald-200"
-        : absolute <= yellow
-          ? "border-amber-300 text-amber-200"
-          : "border-rose-300 text-rose-200";
-
-  const needleColor =
-    cents === null
-      ? "#cbd5e1"
-      : absolute <= green
-        ? "#34d399"
-        : absolute <= yellow
-          ? "#fbbf24"
-          : "#fb7185";
+  const meterColor = colorFromError(absolute, green, yellow);
 
   return (
-    <div className={`rounded-2xl border bg-slate-950/85 p-2 backdrop-blur ${statusClass}`}>
-      <div className="relative mx-auto h-[176px] w-[176px]">
-        <svg viewBox="0 0 176 176" className="h-full w-full">
-          <path
-            d="M 24 128 A 64 64 0 0 1 152 128"
-            stroke="rgba(244,63,94,0.65)"
-            strokeWidth="13"
+    <div
+      className="rounded-full border p-2 backdrop-blur-sm"
+      style={{
+        borderColor: `${meterColor}88`,
+        backgroundColor: "rgba(2,6,23,0.16)",
+      }}
+    >
+      <div className="relative mx-auto h-[160px] w-[160px]">
+        <svg viewBox="0 0 180 180" className="h-full w-full">
+          <defs>
+            <linearGradient id="tuner-spectrum" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#fb7185" />
+              <stop offset="45%" stopColor="#fbbf24" />
+              <stop offset="55%" stopColor="#34d399" />
+              <stop offset="100%" stopColor="#fb7185" />
+            </linearGradient>
+          </defs>
+          <circle
+            cx={center}
+            cy={center}
+            r="74"
+            stroke="url(#tuner-spectrum)"
+            strokeWidth="8"
             fill="none"
-            strokeLinecap="round"
+            opacity="0.55"
           />
-          <path
-            d="M 42 128 A 46 46 0 0 1 134 128"
-            stroke="rgba(251,191,36,0.8)"
-            strokeWidth="11"
-            fill="none"
-            strokeLinecap="round"
-          />
-          <path
-            d="M 63 128 A 25 25 0 0 1 113 128"
-            stroke="rgba(52,211,153,0.85)"
+          <circle
+            cx={center}
+            cy={center}
+            r="61"
+            stroke={meterColor}
             strokeWidth="10"
             fill="none"
-            strokeLinecap="round"
+            opacity="0.85"
           />
-          <line x1={center} y1={center} x2={needleX} y2={needleY} stroke={needleColor} strokeWidth="3" />
-          <circle cx={center} cy={center} r="7" fill={needleColor} />
+          <line x1={center} y1={center} x2={needleX} y2={needleY} stroke={meterColor} strokeWidth="3" />
+          <circle cx={center} cy={center} r="7" fill={meterColor} />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <p className="text-2xl font-semibold leading-none text-slate-100">{note ?? "--"}</p>
-          <p className="mt-1 text-xs text-slate-400">{formatSignedCents(cents)}</p>
+          <p className="mt-1 text-xs text-slate-300">{formatSignedCents(cents)}</p>
+          <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-400">
+            target {`\u00B1`}{green}c
+          </p>
         </div>
-      </div>
-      <div className="mt-1 flex items-center justify-between px-2 text-[11px] text-slate-400">
-        <span>Flat -50</span>
-        <span>Target {`\u00B1`}{green}c</span>
-        <span>Sharp +50</span>
       </div>
     </div>
   );
+}
+
+function colorFromError(error: number, green: number, yellow: number): string {
+  if (!Number.isFinite(error)) {
+    return "#cbd5e1";
+  }
+  if (error <= green) {
+    return "#34d399";
+  }
+  if (error <= yellow) {
+    const ratio = (error - green) / Math.max(0.0001, yellow - green);
+    return interpolateColor("#34d399", "#fbbf24", ratio);
+  }
+  const ratio = clamp((error - yellow) / Math.max(0.0001, 50 - yellow), 0, 1);
+  return interpolateColor("#fbbf24", "#fb7185", ratio);
+}
+
+function interpolateColor(startHex: string, endHex: string, ratio: number): string {
+  const from = hexToRgb(startHex);
+  const to = hexToRgb(endHex);
+  const r = Math.round(from.r + (to.r - from.r) * ratio);
+  const g = Math.round(from.g + (to.g - from.g) * ratio);
+  const b = Math.round(from.b + (to.b - from.b) * ratio);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const normalized = hex.replace("#", "");
+  const value = Number.parseInt(normalized, 16);
+  return {
+    r: (value >> 16) & 255,
+    g: (value >> 8) & 255,
+    b: value & 255,
+  };
 }
 
 function formatSignedCents(cents: number | null): string {

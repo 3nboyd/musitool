@@ -81,6 +81,12 @@ interface StudioState {
     recommendations: TheoryRecommendation[],
     memory: TheoryMemory
   ) => void;
+  setTheoryControl: (update: {
+    keyControlMode?: TheoryMemory["keyControlMode"];
+    autoDetectKeyChanges?: boolean;
+    manualKey?: string;
+    manualScale?: string;
+  }) => void;
   updateAnalysisSettings: (update: Partial<AnalysisSettings>) => void;
   updateMetronome: (update: Partial<MetronomePattern>) => void;
   setMetronomeRunning: (running: boolean) => void;
@@ -219,6 +225,33 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         theoryContext: context,
         recommendations,
         theoryMemory: mergedMemory,
+      };
+    }),
+  setTheoryControl: (update) =>
+    set((state) => {
+      const nextMemory: TheoryMemory = {
+        ...state.theoryMemory,
+        ...update,
+      };
+
+      const mode = update.keyControlMode ?? nextMemory.keyControlMode;
+      if (mode !== "manual") {
+        return {
+          theoryMemory: nextMemory,
+        };
+      }
+
+      const manualKey = update.manualKey ?? nextMemory.manualKey;
+      const manualScale = update.manualScale ?? nextMemory.manualScale;
+
+      return {
+        theoryMemory: nextMemory,
+        theoryContext: {
+          ...state.theoryContext,
+          keyGuess: manualKey,
+          scaleGuess: manualScale,
+          keyConfidence: 1,
+        },
       };
     }),
   updateAnalysisSettings: (update) =>

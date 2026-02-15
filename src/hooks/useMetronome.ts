@@ -22,6 +22,7 @@ export function useMetronome(): UseMetronomeResult {
   const [currentBeat, setCurrentBeat] = useState(0);
 
   const audioContextRef = useRef<AudioContext | null>(null);
+  const masterGainRef = useRef<GainNode | null>(null);
   const schedulerTimerRef = useRef<number | null>(null);
   const nextTickTimeRef = useRef(0);
   const currentTickRef = useRef(0);
@@ -38,8 +39,15 @@ export function useMetronome(): UseMetronomeResult {
       void ctx.resume();
     }
 
+    if (!masterGainRef.current) {
+      const gain = ctx.createGain();
+      gain.gain.value = metronome.volume;
+      gain.connect(ctx.destination);
+      masterGainRef.current = gain;
+    }
+
     return ctx;
-  }, []);
+  }, [metronome.volume]);
 
   const scheduleClick = useCallback(
     (time: number, tickIndex: number, tickIntervalSec: number) => {
@@ -49,24 +57,30 @@ export function useMetronome(): UseMetronomeResult {
       const isDownBeat = beatIndex === 0 && tickIndex % factor === 0;
       const accent = metronome.accents[beatIndex] ?? (isDownBeat ? 1 : 0);
       const isCountIn = countInTicksRemainingRef.current > 0;
+      const isSubdivisionTick = tickIndex % factor !== 0;
+      const profile = getSoundProfile(metronome.sound, {
+        accent,
+        isCountIn,
+        isSubdivisionTick,
+      });
 
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
+      osc.type = profile.type;
+      osc.frequency.setValueAtTime(profile.frequency, time);
+      osc.frequency.exponentialRampToValueAtTime(
+        Math.max(80, profile.frequency * profile.sweepRatio),
+        time + profile.duration
+      );
 
-      const freqBase = isCountIn ? 1500 : accent ? 1300 : 900;
-      const subDivisionLift = tickIndex % factor === 0 ? 0 : -120;
-      osc.frequency.value = freqBase + subDivisionLift;
-      osc.type = "triangle";
-
-      const gainValue = isCountIn ? 0.18 : accent ? 0.13 : 0.08;
-      gain.gain.setValueAtTime(gainValue, time);
-      gain.gain.exponentialRampToValueAtTime(0.0001, time + Math.min(0.05, tickIntervalSec * 0.6));
+      gain.gain.setValueAtTime(profile.gain, time);
+      gain.gain.exponentialRampToValueAtTime(0.0001, time + Math.min(profile.duration, tickIntervalSec * 0.8));
 
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(masterGainRef.current ?? ctx.destination);
 
       osc.start(time);
-      osc.stop(time + 0.06);
+      osc.stop(time + profile.duration + 0.01);
 
       setCurrentBeat(beatIndex + 1);
 
@@ -74,7 +88,7 @@ export function useMetronome(): UseMetronomeResult {
         countInTicksRemainingRef.current -= 1;
       }
     },
-    [ensureAudioContext, metronome.accents, metronome.subdivision, metronome.timeSigTop]
+    [ensureAudioContext, metronome.accents, metronome.sound, metronome.subdivision, metronome.timeSigTop]
   );
 
   const scheduler = useCallback(() => {
@@ -162,9 +176,20 @@ export function useMetronome(): UseMetronomeResult {
         void audioContextRef.current.close();
         audioContextRef.current = null;
       }
+      masterGainRef.current = null;
     },
     [stop]
   );
+
+  useEffect(() => {
+    const ctx = audioContextRef.current;
+    const gain = masterGainRef.current;
+    if (!ctx || !gain) {
+      return;
+    }
+
+    gain.gain.setTargetAtTime(Math.max(0, Math.min(1, metronome.volume)), ctx.currentTime, 0.02);
+  }, [metronome.volume]);
 
   return useMemo(
     () => ({
@@ -177,4 +202,56 @@ export function useMetronome(): UseMetronomeResult {
     }),
     [currentBeat, isRunning, start, stop, tapTempo, toggle]
   );
+}
+
+function getSoundProfile(
+  sound: "click" | "woodblock" | "digital" | "shaker",
+  input: { accent: number; isCountIn: boolean; isSubdivisionTick: boolean }
+): {
+  type: OscillatorType;
+  frequency: number;
+  gain: number;
+  duration: number;
+  sweepRatio: number;
+} {
+  const emphasized = input.isCountIn || input.accent === 1;
+  const subdivisionPenalty = input.isSubdivisionTick ? 0.86 : 1;
+
+  if (sound === "woodblock") {
+    return {
+      type: "square",
+      frequency: emphasized ? 980 : 720,
+      gain: (emphasized ? 0.16 : 0.11) * subdivisionPenalty,
+      duration: emphasized ? 0.06 : 0.045,
+      sweepRatio: 0.78,
+    };
+  }
+
+  if (sound === "digital") {
+    return {
+      type: "sine",
+      frequency: emphasized ? 1520 : 1110,
+      gain: (emphasized ? 0.15 : 0.09) * subdivisionPenalty,
+      duration: emphasized ? 0.045 : 0.035,
+      sweepRatio: 0.9,
+    };
+  }
+
+  if (sound === "shaker") {
+    return {
+      type: "sawtooth",
+      frequency: emphasized ? 1680 : 1320,
+      gain: (emphasized ? 0.11 : 0.075) * subdivisionPenalty,
+      duration: emphasized ? 0.035 : 0.025,
+      sweepRatio: 0.72,
+    };
+  }
+
+  return {
+    type: "triangle",
+    frequency: emphasized ? 1320 : 940,
+    gain: (emphasized ? 0.16 : 0.105) * subdivisionPenalty,
+    duration: emphasized ? 0.055 : 0.04,
+    sweepRatio: 0.82,
+  };
 }

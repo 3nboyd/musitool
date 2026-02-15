@@ -1,5 +1,5 @@
 import { Panel } from "@/components/ui/panel";
-import { MetronomePattern, Subdivision } from "@/types/studio";
+import { MetronomePattern, MetronomeSound, Subdivision } from "@/types/studio";
 
 interface MetronomePanelProps {
   pattern: MetronomePattern;
@@ -7,8 +7,11 @@ interface MetronomePanelProps {
   currentBeat: number;
   liveTempo: number | null;
   tempoDelta: number | null;
+  tempoConfidence: number | null;
   autoSyncTempo: boolean;
+  fileMonitorGain: number;
   onUpdate: (update: Partial<MetronomePattern>) => void;
+  onUpdateFileMonitorGain: (value: number) => void;
   onToggle: () => void;
   onTapTempo: () => void;
   onSyncToLive: () => void;
@@ -16,6 +19,7 @@ interface MetronomePanelProps {
 }
 
 const SUBDIVISIONS: Subdivision[] = ["quarter", "eighth", "triplet", "sixteenth"];
+const METRONOME_SOUNDS: MetronomeSound[] = ["click", "woodblock", "digital", "shaker"];
 
 export function MetronomePanel({
   pattern,
@@ -23,8 +27,11 @@ export function MetronomePanel({
   currentBeat,
   liveTempo,
   tempoDelta,
+  tempoConfidence,
   autoSyncTempo,
+  fileMonitorGain,
   onUpdate,
+  onUpdateFileMonitorGain,
   onToggle,
   onTapTempo,
   onSyncToLive,
@@ -80,6 +87,21 @@ export function MetronomePanel({
         </label>
 
         <label className="rounded-lg border border-slate-800 bg-slate-950/80 p-3 text-sm text-slate-300">
+          Metronome Sound
+          <select
+            value={pattern.sound}
+            onChange={(event) => onUpdate({ sound: event.target.value as MetronomeSound })}
+            className="mt-2 w-full rounded border border-slate-700 bg-slate-900 px-2 py-1"
+          >
+            {METRONOME_SOUNDS.map((sound) => (
+              <option key={sound} value={sound}>
+                {sound}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="rounded-lg border border-slate-800 bg-slate-950/80 p-3 text-sm text-slate-300">
           Time Signature Top
           <input
             type="number"
@@ -100,6 +122,32 @@ export function MetronomePanel({
             step={0.01}
             value={pattern.swing}
             onChange={(event) => onUpdate({ swing: Number(event.target.value) })}
+            className="mt-2 w-full"
+          />
+        </label>
+
+        <label className="rounded-lg border border-slate-800 bg-slate-950/80 p-3 text-sm text-slate-300">
+          Metronome Volume ({Math.round(pattern.volume * 100)}%)
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={pattern.volume}
+            onChange={(event) => onUpdate({ volume: Number(event.target.value) })}
+            className="mt-2 w-full"
+          />
+        </label>
+
+        <label className="rounded-lg border border-slate-800 bg-slate-950/80 p-3 text-sm text-slate-300">
+          Audio File Level ({Math.round(fileMonitorGain * 100)}%)
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={fileMonitorGain}
+            onChange={(event) => onUpdateFileMonitorGain(Number(event.target.value))}
             className="mt-2 w-full"
           />
         </label>
@@ -162,7 +210,7 @@ export function MetronomePanel({
           disabled={liveTempo === null}
           className="rounded-md border border-cyan-500/60 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Sync to Live Tempo
+          Sync to Detected Tempo
         </button>
         <button
           type="button"
@@ -177,9 +225,13 @@ export function MetronomePanel({
         </button>
       </div>
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+      <div className="mt-3 grid gap-2 sm:grid-cols-4">
         <Metric label="Live Tempo" value={liveTempo ? `${Math.round(liveTempo)} BPM` : "--"} />
         <Metric label="Tempo Delta" value={tempoDelta !== null ? `${tempoDelta.toFixed(2)} BPM` : "--"} />
+        <Metric
+          label="Tempo Confidence"
+          value={tempoConfidence !== null ? `${Math.round(tempoConfidence * 100)}%` : "--"}
+        />
         <Metric label="Timing Status" value={timingStatusLabel(tempoDelta)} />
       </div>
     </Panel>

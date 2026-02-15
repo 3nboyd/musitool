@@ -23,6 +23,8 @@ describe("metronome math", () => {
       swing: 0,
       accents: [1, 0, 0, 0],
       countInBars: 1,
+      volume: 0.75,
+      sound: "click",
     };
 
     const grid = buildTickGrid(pattern, 1);

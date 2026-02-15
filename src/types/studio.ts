@@ -1,6 +1,9 @@
 export type AnalysisSource = "idle" | "microphone" | "file" | "midi";
 
 export type Subdivision = "quarter" | "eighth" | "triplet" | "sixteenth";
+export type MetronomeSound = "click" | "woodblock" | "digital" | "shaker";
+export type TunerTolerancePreset = "tight" | "standard" | "relaxed";
+export type TunerTemperament = "equal" | "just" | "pythagorean";
 
 export interface AudioFrameFeature {
   ts: number;
@@ -15,6 +18,14 @@ export interface AudioFrameFeature {
   waveform: number[];
   spectrum: number[];
   source: AnalysisSource;
+}
+
+export interface TunerSettings {
+  tolerancePreset: TunerTolerancePreset;
+  greenRangeCents: number;
+  yellowRangeCents: number;
+  temperament: TunerTemperament;
+  a4Hz: number;
 }
 
 export interface TheoryContext {
@@ -100,6 +111,15 @@ export interface MetronomePattern {
   swing: number;
   accents: number[];
   countInBars: number;
+  volume: number;
+  sound: MetronomeSound;
+}
+
+export interface AnalysisSettings {
+  fftSize: number;
+  smoothingTimeConstant: number;
+  fileMonitorGain: number;
+  tuner: TunerSettings;
 }
 
 export interface MidiEvent {
@@ -127,10 +147,7 @@ export interface SessionState {
   name: string;
   createdAt: number;
   updatedAt: number;
-  analysisSettings: {
-    fftSize: number;
-    smoothingTimeConstant: number;
-  };
+  analysisSettings: AnalysisSettings;
   metronome: MetronomePattern;
   midiMap: Record<string, string>;
   recordedEvents: RecordedMidiEvent[];

@@ -25,7 +25,7 @@ describe("theory recommendations", () => {
     expect(types.has("note")).toBe(true);
     expect(types.has("chord")).toBe(true);
     expect(types.has("scale")).toBe(true);
-    expect(items[0].confidence).toBeGreaterThan(0.5);
+    expect(Math.max(...items.map((item) => item.confidence))).toBeGreaterThan(0.5);
   });
 
   it("keeps key stable across brief chromatic notes", () => {

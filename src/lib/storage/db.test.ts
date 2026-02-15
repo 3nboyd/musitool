@@ -12,6 +12,14 @@ describe("session storage", () => {
       analysisSettings: {
         fftSize: 2048,
         smoothingTimeConstant: 0.85,
+        fileMonitorGain: 0.85,
+        tuner: {
+          tolerancePreset: "standard",
+          greenRangeCents: 6,
+          yellowRangeCents: 14,
+          temperament: "equal",
+          a4Hz: 440,
+        },
       },
       metronome: {
         bpm: 120,
@@ -21,6 +29,8 @@ describe("session storage", () => {
         swing: 0,
         accents: [1, 0, 0, 0],
         countInBars: 1,
+        volume: 0.75,
+        sound: "click",
       },
       midiMap: {},
       recordedEvents: [],

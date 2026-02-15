@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import {
   AnalysisSource,
+  AnalysisSettings,
   AudioFrameFeature,
   CompressedSection,
   FormDisplayMode,
@@ -33,10 +34,24 @@ const defaultMetronome: MetronomePattern = {
   swing: 0,
   accents: [1, 0, 0, 0],
   countInBars: 1,
+  volume: 0.75,
+  sound: "click",
 };
 
 const defaultTheoryContext: TheoryContext = createDefaultTheoryContext();
 const defaultTheoryMemory: TheoryMemory = createDefaultTheoryMemory();
+const defaultAnalysisSettings: AnalysisSettings = {
+  fftSize: 2048,
+  smoothingTimeConstant: 0.85,
+  fileMonitorGain: 0.85,
+  tuner: {
+    tolerancePreset: "standard",
+    greenRangeCents: 6,
+    yellowRangeCents: 14,
+    temperament: "equal",
+    a4Hz: 440,
+  },
+};
 
 interface StudioState {
   source: AnalysisSource;
@@ -55,10 +70,7 @@ interface StudioState {
   recordedEvents: RecordedMidiEvent[];
   recordingStartMs: number | null;
   sessionName: string;
-  analysisSettings: {
-    fftSize: number;
-    smoothingTimeConstant: number;
-  };
+  analysisSettings: AnalysisSettings;
   midiMap: Record<string, string>;
   setSource: (source: AnalysisSource) => void;
   setLatestFrame: (frame: AudioFrameFeature) => void;
@@ -68,6 +80,7 @@ interface StudioState {
     recommendations: TheoryRecommendation[],
     memory: TheoryMemory
   ) => void;
+  updateAnalysisSettings: (update: Partial<AnalysisSettings>) => void;
   updateMetronome: (update: Partial<MetronomePattern>) => void;
   setMetronomeRunning: (running: boolean) => void;
   setMidiSupported: (supported: boolean) => void;
@@ -163,18 +176,19 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   recordedEvents: [],
   recordingStartMs: null,
   sessionName: "Summer Lab Session",
-  analysisSettings: {
-    fftSize: 2048,
-    smoothingTimeConstant: 0.85,
-  },
+  analysisSettings: defaultAnalysisSettings,
   midiMap: {},
   setSource: (source) => set({ source }),
   setLatestFrame: (frame) =>
     set((state) => {
       const nextFrames = [...state.frameHistory, frame].slice(-FRAME_HISTORY_LIMIT);
-      const nextNotes = frame.note
-        ? [...state.noteHistory, frame.note].slice(-NOTE_HISTORY_LIMIT)
-        : state.noteHistory;
+      let nextNotes = state.noteHistory;
+      if (frame.note) {
+        const last = state.noteHistory[state.noteHistory.length - 1];
+        if (last !== frame.note) {
+          nextNotes = [...state.noteHistory, frame.note].slice(-NOTE_HISTORY_LIMIT);
+        }
+      }
 
       return {
         latestFrame: frame,
@@ -206,6 +220,24 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         theoryMemory: mergedMemory,
       };
     }),
+  updateAnalysisSettings: (update) =>
+    set((state) => {
+      const nextTuner = update.tuner
+        ? {
+            ...state.analysisSettings.tuner,
+            ...update.tuner,
+          }
+        : state.analysisSettings.tuner;
+
+      return {
+        analysisSettings: {
+          ...state.analysisSettings,
+          ...update,
+          tuner: nextTuner,
+          fileMonitorGain: clamp(update.fileMonitorGain ?? state.analysisSettings.fileMonitorGain, 0, 1),
+        },
+      };
+    }),
   updateMetronome: (update) =>
     set((state) => {
       const beats = update.timeSigTop ?? state.metronome.timeSigTop;
@@ -216,6 +248,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
           ...state.metronome,
           ...update,
           accents,
+          volume: clamp(update.volume ?? state.metronome.volume, 0, 1),
         },
       };
     }),
@@ -348,6 +381,16 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     set(() => {
       const incomingMemory = session.theoryMemory ?? createDefaultTheoryMemory();
       const expandedBars = incomingMemory.expandedBars ?? incomingMemory.formSheetBars ?? [];
+      const incomingAnalysis = session.analysisSettings ?? defaultAnalysisSettings;
+      const normalizedAnalysisSettings: AnalysisSettings = {
+        ...defaultAnalysisSettings,
+        ...incomingAnalysis,
+        fileMonitorGain: clamp(incomingAnalysis.fileMonitorGain ?? defaultAnalysisSettings.fileMonitorGain, 0, 1),
+        tuner: {
+          ...defaultAnalysisSettings.tuner,
+          ...(incomingAnalysis.tuner ?? {}),
+        },
+      };
       const normalizedMemory = buildFormStateFromExpanded(expandedBars, {
         ...createDefaultTheoryMemory(),
         ...incomingMemory,
@@ -355,8 +398,11 @@ export const useStudioStore = create<StudioState>((set, get) => ({
 
       return {
         sessionName: session.name,
-        analysisSettings: session.analysisSettings,
-        metronome: session.metronome,
+        analysisSettings: normalizedAnalysisSettings,
+        metronome: {
+          ...defaultMetronome,
+          ...session.metronome,
+        },
         midiMap: session.midiMap,
         recordedEvents: session.recordedEvents,
         noteHistory: session.noteHistory,
@@ -368,3 +414,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     return createSessionSnapshot(get());
   },
 }));
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}

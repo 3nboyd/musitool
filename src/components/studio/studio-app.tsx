@@ -31,6 +31,8 @@ export function StudioApp() {
   const createSessionSnapshot = useStudioStore((state) => state.createSessionSnapshot);
   const applySession = useStudioStore((state) => state.applySession);
   const setTheory = useStudioStore((state) => state.setTheory);
+  const analysisSettings = useStudioStore((state) => state.analysisSettings);
+  const updateAnalysisSettings = useStudioStore((state) => state.updateAnalysisSettings);
   const source = useStudioStore((state) => state.source);
 
   const midiEvents = useStudioStore((state) => state.midiEvents);
@@ -52,8 +54,10 @@ export function StudioApp() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [liveTempo, setLiveTempo] = useState<number | null>(null);
+  const [tempoConfidence, setTempoConfidence] = useState<number | null>(null);
   const [autoSyncTempo, setAutoSyncTempo] = useState(false);
   const lastAutoSyncAtRef = useRef(0);
+  const liveTempoWindowRef = useRef<number[]>([]);
 
   const { requestTheory } = useTheoryWorker({
     onResponse: ({ context, recommendations: nextRecommendations, memory }) => {
@@ -79,6 +83,8 @@ export function StudioApp() {
     onTheoryRequest: (history, bpm) => {
       queueTheoryRequest(history, bpm);
     },
+    fileMonitorGain: analysisSettings.fileMonitorGain,
+    tunerSettings: analysisSettings.tuner,
   });
 
   const metronome = useMetronome();
@@ -110,26 +116,30 @@ export function StudioApp() {
       return;
     }
 
-    setLiveTempo((previous) => {
-      if (previous === null) {
-        return detectedBpm;
-      }
-      return previous * 0.7 + detectedBpm * 0.3;
-    });
-  }, [frame?.bpm]);
+    const referenceTempo = liveTempo ?? metronomePattern.bpm;
+    const normalized = normalizeTempoToReference(detectedBpm, referenceTempo);
+    const window = [...liveTempoWindowRef.current, normalized].slice(-20);
+    liveTempoWindowRef.current = window;
+    setLiveTempo(computeStableTempo(window));
+    setTempoConfidence(computeTempoConfidence(window));
+  }, [frame?.bpm, liveTempo, metronomePattern.bpm]);
 
   useEffect(() => {
     if (!autoSyncTempo || liveTempo === null) {
       return;
     }
 
+    if ((tempoConfidence ?? 0) < 0.58) {
+      return;
+    }
+
     const now = Date.now();
     const nextBpm = Math.round(liveTempo);
-    if (Math.abs(nextBpm - metronomePattern.bpm) >= 1 && now - lastAutoSyncAtRef.current > 1500) {
+    if (Math.abs(nextBpm - metronomePattern.bpm) >= 1 && now - lastAutoSyncAtRef.current > 1800) {
       updateMetronome({ bpm: nextBpm });
       lastAutoSyncAtRef.current = now;
     }
-  }, [autoSyncTempo, liveTempo, metronomePattern.bpm, updateMetronome]);
+  }, [autoSyncTempo, liveTempo, metronomePattern.bpm, tempoConfidence, updateMetronome]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -254,9 +264,16 @@ export function StudioApp() {
       return;
     }
 
-    updateMetronome({ bpm: Math.round(liveTempo) });
-    setNotice(`Metronome synced to live tempo (${Math.round(liveTempo)} BPM).`);
-  }, [liveTempo, updateMetronome]);
+    const confidence = tempoConfidence ?? 0;
+    if (confidence < 0.45) {
+      setNotice("Tempo detection is unstable. Play steady quarter notes, then sync again.");
+      return;
+    }
+
+    const nextBpm = Math.round(liveTempo);
+    updateMetronome({ bpm: nextBpm });
+    setNotice(`Metronome locked to ${nextBpm} BPM (${Math.round(confidence * 100)}% confidence).`);
+  }, [liveTempo, tempoConfidence, updateMetronome]);
 
   const downloadChartSheet = useCallback(
     async (format: "txt" | "pdf" | "ireal" | "musicxml", condensed: boolean) => {
@@ -327,15 +344,33 @@ export function StudioApp() {
 
         <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
           <div className="space-y-4">
-            <AnalysisPanel frame={frame} />
+            <AnalysisPanel
+              frame={frame}
+              tunerSettings={analysisSettings.tuner}
+              onUpdateTunerSettings={(update) => {
+                updateAnalysisSettings({
+                  tuner: {
+                    ...analysisSettings.tuner,
+                    ...update,
+                  },
+                });
+              }}
+            />
             <MetronomePanel
               pattern={metronomePattern}
               running={metronome.isRunning}
               currentBeat={metronome.currentBeat}
               liveTempo={liveTempo}
               tempoDelta={tempoDelta}
+              tempoConfidence={tempoConfidence}
               autoSyncTempo={autoSyncTempo}
+              fileMonitorGain={analysisSettings.fileMonitorGain}
               onUpdate={updateMetronome}
+              onUpdateFileMonitorGain={(value) => {
+                updateAnalysisSettings({
+                  fileMonitorGain: value,
+                });
+              }}
               onToggle={metronome.toggle}
               onTapTempo={metronome.tapTempo}
               onSyncToLive={syncToLiveTempo}
@@ -408,4 +443,45 @@ export function StudioApp() {
       </main>
     </div>
   );
+}
+
+function normalizeTempoToReference(candidate: number, reference: number): number {
+  const options = [candidate, candidate / 2, candidate * 2, candidate * (2 / 3), candidate * 1.5];
+  const valid = options.filter((tempo) => Number.isFinite(tempo) && tempo >= 45 && tempo <= 220);
+  if (valid.length === 0) {
+    return candidate;
+  }
+
+  return valid.sort((a, b) => Math.abs(a - reference) - Math.abs(b - reference))[0];
+}
+
+function computeStableTempo(samples: number[]): number | null {
+  if (samples.length === 0) {
+    return null;
+  }
+
+  const sorted = [...samples].sort((a, b) => a - b);
+  const trim = Math.floor(sorted.length * 0.2);
+  const trimmed = sorted.slice(trim, sorted.length - trim);
+  const pool = trimmed.length >= 3 ? trimmed : sorted;
+  const sum = pool.reduce((acc, value) => acc + value, 0);
+
+  return sum / pool.length;
+}
+
+function computeTempoConfidence(samples: number[]): number | null {
+  if (samples.length < 4) {
+    return null;
+  }
+
+  const avg = samples.reduce((acc, value) => acc + value, 0) / samples.length;
+  const variance =
+    samples.reduce((acc, value) => acc + (value - avg) * (value - avg), 0) / samples.length;
+  const deviation = Math.sqrt(variance);
+
+  return clamp(1 - deviation / 6, 0.1, 1);
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }

@@ -15,9 +15,12 @@ import {
 
 const ROOTS = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
 const SCALES = ["major", "minor", "dorian", "mixolydian", "lydian", "phrygian"];
-const SCALE_RETAIN_MARGIN = 1.4;
-const SCALE_SWITCH_CONFIDENCE_BONUS = 0.08;
-const RECOMMENDATION_REFRESH_MS = 2400;
+const SCALE_RETAIN_MARGIN = 2.2;
+const SCALE_SWITCH_CONFIDENCE_BONUS = 0.12;
+const MIN_KEY_SWITCH_HOLD_MS = 4200;
+const MIN_KEY_SWITCH_BARS = 2.5;
+const RECOMMENDATION_MIN_HOLD_MS = 12000;
+const RECOMMENDATION_HOLD_BARS = 8;
 
 interface TheoryAnalysisInput {
   noteHistory: string[];
@@ -72,7 +75,7 @@ export function analyzeTheoryState(input: TheoryAnalysisInput): {
   const normalized = normalizeNotes(input.noteHistory);
 
   const candidates = rankScaleCandidates(normalized);
-  const stable = chooseStableScale(candidates, memory, input.nowMs);
+  const stable = chooseStableScale(candidates, memory, input.nowMs, input.bpm);
   const stableScale = Scale.get(`${stable.keyGuess} ${stable.scaleGuess}`);
   const scaleNotes = stableScale.notes.length > 0 ? stableScale.notes : Scale.get("C major").notes;
 
@@ -113,14 +116,13 @@ export function analyzeTheoryState(input: TheoryAnalysisInput): {
   const signature = recommendationSignature(freshRecommendations);
   const keyChanged =
     memory.stableKey !== stable.keyGuess || memory.stableScale !== stable.scaleGuess;
-  const chordChanged =
-    (memory.progression[memory.progression.length - 1] ?? null) !==
-    (progression[progression.length - 1] ?? null);
+  const sectionChanged = (memory.currentFormLabel ?? null) !== (currentFormLabel ?? null);
+  const recommendationHoldMs = getRecommendationHoldMs(input.bpm);
 
   const shouldUseCached =
-    input.nowMs - memory.lastRecommendationAt < RECOMMENDATION_REFRESH_MS &&
+    input.nowMs - memory.lastRecommendationAt < recommendationHoldMs &&
     !keyChanged &&
-    !chordChanged &&
+    !sectionChanged &&
     memory.cachedRecommendations.length > 0;
 
   const recommendations = shouldUseCached
@@ -297,7 +299,8 @@ function rankScaleCandidates(noteHistory: string[]): ScaleCandidate[] {
 function chooseStableScale(
   rankedCandidates: ScaleCandidate[],
   memory: TheoryMemory,
-  nowMs: number
+  nowMs: number,
+  bpm: number | null
 ): StableScaleDecision {
   const best = rankedCandidates[0];
   if (!best) {
@@ -329,8 +332,15 @@ function chooseStableScale(
 
   const scoreMargin = best.score - previous.score;
   const confidenceThreshold = memory.keyConfidence + SCALE_SWITCH_CONFIDENCE_BONUS;
+  const holdMs = getKeySwitchHoldMs(bpm);
+  const inHoldWindow = nowMs - memory.lastKeyChangeAt < holdMs;
+  const strongOverride = scoreMargin >= 4.8 && best.confidence >= confidenceThreshold + 0.1;
 
-  if (scoreMargin < SCALE_RETAIN_MARGIN || best.confidence < confidenceThreshold) {
+  if (
+    scoreMargin < SCALE_RETAIN_MARGIN ||
+    best.confidence < confidenceThreshold ||
+    (inHoldWindow && memory.lastKeyChangeAt > 0 && !strongOverride)
+  ) {
     return {
       keyGuess: memory.stableKey,
       scaleGuess: memory.stableScale,
@@ -559,6 +569,13 @@ function buildTheoryRecommendations(input: {
   const current = input.context.note ? stripOctave(input.context.note) : null;
   const scaleName = `${input.context.keyGuess} ${input.context.scaleGuess}`;
 
+  const scaleSuggestions = buildImprovisationScaleSuggestions(input);
+  scaleSuggestions.forEach((suggestion) => {
+    recommendations.push(
+      makeRecommendation("scale", suggestion.label, suggestion.reason, suggestion.confidence)
+    );
+  });
+
   const nextFromForm = predictNextFromForm(input.progression);
   if (nextFromForm) {
     recommendations.push(
@@ -589,7 +606,7 @@ function buildTheoryRecommendations(input: {
     );
   }
 
-  input.chordCandidates.slice(0, 4).forEach((candidate, index) => {
+  input.chordCandidates.slice(0, 3).forEach((candidate, index) => {
     recommendations.push(
       makeRecommendation(
         "chord",
@@ -600,28 +617,250 @@ function buildTheoryRecommendations(input: {
     );
   });
 
-  recommendations.push(
-    makeRecommendation(
-      "scale",
-      scaleName,
-      `Stable key inference from note-set weighting (${uniqueNotes(input.normalizedHistory).join(", ") || "insufficient notes"}).`,
-      input.context.keyConfidence ?? 0.6
-    )
-  );
-
   if (input.formPatterns.length > 0) {
     const top = input.formPatterns[0];
     recommendations.push(
       makeRecommendation(
         "chord",
-        top.signature,
+        `Section ${top.label}: ${top.signature.replace(/-/g, " -> ")}`,
         `Detected repeating form section ${top.label} (${top.occurrences}x).`,
         clamp(0.45 + top.occurrences * 0.08, 0, 0.92)
       )
     );
   }
 
-  return uniqueRecommendations(recommendations).slice(0, 9);
+  return uniqueRecommendations(recommendations).slice(0, 12);
+}
+
+interface ScaleSuggestion {
+  label: string;
+  reason: string;
+  confidence: number;
+}
+
+function buildImprovisationScaleSuggestions(input: {
+  context: TheoryContext;
+  normalizedHistory: string[];
+  scaleNotes: string[];
+  chordCandidates: string[];
+  progression: string[];
+  formPatterns: TheoryFormPattern[];
+}): ScaleSuggestion[] {
+  const suggestions: ScaleSuggestion[] = [];
+  const keyScale = `${input.context.keyGuess} ${input.context.scaleGuess}`;
+  const uniqueSet = uniqueNotes(input.normalizedHistory);
+
+  pushScaleSuggestion(
+    suggestions,
+    keyScale,
+    `Key-center scale from stable note-set inference (${uniqueSet.join(", ") || "insufficient notes"}).`,
+    input.context.keyConfidence ?? 0.62
+  );
+
+  const chord = Chord.get(input.context.chordGuess);
+  const chordRoot = Note.simplify(chord.tonic ?? input.context.keyGuess);
+  const symbol = input.context.chordGuess.toLowerCase();
+  const dominantChord = isDominantChord(symbol);
+  const minorChord = isMinorChord(symbol);
+  const majorChord = isMajorChord(symbol);
+  const diminishedChord = symbol.includes("dim") || symbol.includes("o");
+  const halfDiminished = symbol.includes("m7b5") || symbol.includes("ø");
+  const alteredDominant = symbol.includes("alt") || symbol.includes("b9") || symbol.includes("#9");
+
+  if (dominantChord) {
+    pushScaleSuggestion(
+      suggestions,
+      `${chordRoot} mixolydian`,
+      `Primary dominant sound over ${input.context.chordGuess}.`,
+      0.82
+    );
+    pushScaleSuggestion(
+      suggestions,
+      `${chordRoot} lydian dominant`,
+      `Use for #11 dominant color when tension rises.`,
+      0.74
+    );
+    pushScaleSuggestion(
+      suggestions,
+      `${chordRoot} altered`,
+      `Outside dominant color for altered tensions.`,
+      alteredDominant ? 0.76 : 0.62
+    );
+    pushScaleSuggestion(
+      suggestions,
+      `${chordRoot} half-whole diminished`,
+      `Symmetric dominant option for b9/#9 motion.`,
+      alteredDominant ? 0.72 : 0.6
+    );
+  }
+
+  if (minorChord) {
+    pushScaleSuggestion(
+      suggestions,
+      `${chordRoot} dorian`,
+      `Reliable minor improv vocabulary over ${input.context.chordGuess}.`,
+      0.8
+    );
+    pushScaleSuggestion(
+      suggestions,
+      `${chordRoot} melodic minor`,
+      `Modern minor color when the line wants major-6 color.`,
+      0.71
+    );
+    pushScaleSuggestion(
+      suggestions,
+      `${chordRoot} phrygian`,
+      `Darker minor option for b2 color.`,
+      0.67
+    );
+    pushScaleSuggestion(
+      suggestions,
+      `${chordRoot} egyptian`,
+      `Pentatonic variant for open, modal phrasing on minor vamps.`,
+      0.59
+    );
+  }
+
+  if (majorChord) {
+    pushScaleSuggestion(
+      suggestions,
+      `${chordRoot} ionian`,
+      `Inside major line over ${input.context.chordGuess}.`,
+      0.77
+    );
+    pushScaleSuggestion(
+      suggestions,
+      `${chordRoot} lydian`,
+      `Major color with raised 4th tension.`,
+      0.71
+    );
+    pushScaleSuggestion(
+      suggestions,
+      `${chordRoot} major pentatonic`,
+      `Simple melodic contour for clean inside lines.`,
+      0.68
+    );
+  }
+
+  if (diminishedChord || halfDiminished) {
+    pushScaleSuggestion(
+      suggestions,
+      `${chordRoot} locrian`,
+      `Functional fit for half-diminished movement.`,
+      0.7
+    );
+    pushScaleSuggestion(
+      suggestions,
+      `${chordRoot} diminished`,
+      `Symmetric diminished color over tense passing chords.`,
+      0.66
+    );
+  }
+
+  const progressionHint = detectTurnaroundHint(input.progression);
+  if (progressionHint) {
+    pushScaleSuggestion(
+      suggestions,
+      `${progressionHint.dominantRoot} altered`,
+      `ii-V-I tendency detected; altered dominant works before resolution.`,
+      0.73
+    );
+    pushScaleSuggestion(
+      suggestions,
+      `${progressionHint.dominantRoot} phrygian dominant`,
+      `Use for dominant b9 flavor in cadential moments.`,
+      0.62
+    );
+  }
+
+  const repeatingMinorSection =
+    input.formPatterns.length > 0 &&
+    input.formPatterns[0].occurrences >= 2 &&
+    (minorChord || input.context.scaleGuess === "minor" || input.context.scaleGuess === "phrygian");
+  if (repeatingMinorSection) {
+    pushScaleSuggestion(
+      suggestions,
+      `${input.context.keyGuess} hirajoshi`,
+      `Section repeats suggest a static color center; try a concise exotic color.`,
+      0.54
+    );
+  }
+
+  return suggestions.slice(0, 7);
+}
+
+function pushScaleSuggestion(
+  out: ScaleSuggestion[],
+  label: string,
+  reason: string,
+  confidence: number
+): void {
+  const canonical = canonicalScaleName(label);
+  if (!canonical) {
+    return;
+  }
+
+  if (out.some((item) => item.label === canonical)) {
+    return;
+  }
+
+  out.push({
+    label: canonical,
+    reason,
+    confidence: clamp(confidence, 0, 1),
+  });
+}
+
+function canonicalScaleName(label: string): string | null {
+  const normalized = label.replace(/\s+/g, " ").trim();
+  const scale = Scale.get(normalized);
+  if (scale.notes.length === 0) {
+    return null;
+  }
+  return normalized;
+}
+
+function isDominantChord(symbol: string): boolean {
+  const quality = extractChordQualityToken(symbol);
+  return quality.includes("7") && !quality.includes("maj") && !isMinorChord(symbol);
+}
+
+function isMinorChord(symbol: string): boolean {
+  const quality = extractChordQualityToken(symbol);
+  return (quality.startsWith("m") || quality.includes("min")) && !quality.startsWith("maj");
+}
+
+function isMajorChord(symbol: string): boolean {
+  const quality = extractChordQualityToken(symbol);
+  return !isMinorChord(symbol) && !isDominantChord(symbol) && !quality.includes("dim");
+}
+
+function extractChordQualityToken(symbol: string): string {
+  return symbol.replace(/^[a-g](#|b)?/i, "").toLowerCase();
+}
+
+function detectTurnaroundHint(progression: string[]): { dominantRoot: string } | null {
+  if (progression.length < 3) {
+    return null;
+  }
+
+  const tail = progression.slice(-3);
+  const roots = tail
+    .map((chordName) => Chord.get(chordName).tonic ?? null)
+    .filter((pc): pc is string => Boolean(pc));
+  if (roots.length < 3) {
+    return null;
+  }
+
+  const dominantRoot = roots[1];
+  const expectedResolution = Note.simplify(Note.transpose(dominantRoot, "4P"));
+  if (Note.simplify(roots[2]) !== expectedResolution) {
+    return null;
+  }
+
+  return {
+    dominantRoot: Note.simplify(dominantRoot),
+  };
 }
 
 function buildChordCandidates(key: string, scale: string): string[] {
@@ -734,4 +973,22 @@ function round2(value: number): number {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function getKeySwitchHoldMs(bpm: number | null): number {
+  if (!bpm || bpm <= 0) {
+    return MIN_KEY_SWITCH_HOLD_MS;
+  }
+
+  const barMs = (60000 * 4) / bpm;
+  return Math.max(MIN_KEY_SWITCH_HOLD_MS, barMs * MIN_KEY_SWITCH_BARS);
+}
+
+function getRecommendationHoldMs(bpm: number | null): number {
+  if (!bpm || bpm <= 0) {
+    return RECOMMENDATION_MIN_HOLD_MS;
+  }
+
+  const barMs = (60000 * 4) / bpm;
+  return Math.max(RECOMMENDATION_MIN_HOLD_MS, barMs * RECOMMENDATION_HOLD_BARS);
 }

@@ -322,8 +322,8 @@ export function StudioApp() {
           <div className="flex items-center gap-3">
             <div className="rounded-xl border border-slate-700/80 bg-slate-950/75 p-1.5">
               <Image
-                src="/musitone-logo.svg"
-                alt="MusiTone logo"
+                src="/improvibuddy-logo.svg"
+                alt="ImproviBuddy logo"
                 width={54}
                 height={54}
                 className="h-[54px] w-[54px]"
@@ -331,7 +331,7 @@ export function StudioApp() {
               />
             </div>
             <div>
-              <h1 className="text-3xl font-semibold tracking-tight text-slate-100">MusiTone</h1>
+              <h1 className="text-3xl font-semibold tracking-tight text-slate-100">ImproviBuddy</h1>
               <p className="text-sm text-slate-300">Designed by Noah Boyd</p>
             </div>
           </div>

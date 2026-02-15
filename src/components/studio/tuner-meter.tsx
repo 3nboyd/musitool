@@ -60,7 +60,7 @@ export function TunerMeter({ cents, greenRange, yellowRange, note }: TunerMeterP
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <p className="text-2xl font-semibold leading-none text-slate-100">{note ?? "--"}</p>
-          <p className="mt-3 text-xs text-slate-300">{formatSignedCents(cents)}</p>
+          <p className="mt-5 text-xs text-slate-300">{formatSignedCents(cents)}</p>
           <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-400">
             target {`\u00B1`}{green}c
           </p>

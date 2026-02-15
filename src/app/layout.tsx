@@ -14,9 +14,9 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MusiTone",
+  title: "ImproviBuddy",
   description:
-    "MusiTone: local-first music analysis and improvisation workspace for live musicians.",
+    "ImproviBuddy: local-first music analysis and improvisation workspace for live musicians.",
 };
 
 export default function RootLayout({

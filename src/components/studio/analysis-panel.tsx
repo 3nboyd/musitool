@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Note, Scale } from "@tonaljs/tonal";
+import { BearMascot } from "@/components/studio/bear-mascot";
 import { Panel } from "@/components/ui/panel";
 import { ScopeCanvas } from "@/components/studio/scope-canvas";
 import { TunerMeter } from "@/components/studio/tuner-meter";
@@ -41,10 +42,11 @@ interface IncomingLane {
 
 interface DisplayLane extends IncomingLane {
   state: LaneState;
-  cooldownTicks: number;
+  cooldownStartedAt: number | null;
+  cooldownProgress: number;
 }
 
-const MAX_COOLDOWN_TICKS = 12;
+const COOLDOWN_DURATION_MS = 18000;
 
 const TOLERANCE_PROFILES: Record<
   TunerTolerancePreset,
@@ -116,11 +118,14 @@ export function AnalysisPanel({
 
     return [featuredArpLane, ...scaleLanes];
   }, [featuredArpLane, rawScaleLanes]);
+  const lastBearNoteRef = useRef<string | null>(null);
+  const [bearPulse, setBearPulse] = useState(0);
   const [displayLanes, setDisplayLanes] = useState<DisplayLane[]>(() =>
     incomingLanes.map((lane) => ({
       ...lane,
       state: "active",
-      cooldownTicks: 0,
+      cooldownStartedAt: null,
+      cooldownProgress: 0,
     }))
   );
 
@@ -132,6 +137,27 @@ export function AnalysisPanel({
     return () => window.cancelAnimationFrame(frame);
   }, [incomingLanes]);
 
+  useEffect(() => {
+    const note = frame?.note ?? null;
+    if (!note || note === lastBearNoteRef.current) {
+      return;
+    }
+
+    lastBearNoteRef.current = note;
+    const kickoff = window.requestAnimationFrame(() => setBearPulse(1));
+
+    const t1 = window.setTimeout(() => setBearPulse(0.65), 260);
+    const t2 = window.setTimeout(() => setBearPulse(0.32), 920);
+    const t3 = window.setTimeout(() => setBearPulse(0), 2200);
+
+    return () => {
+      window.cancelAnimationFrame(kickoff);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearTimeout(t3);
+    };
+  }, [frame?.note]);
+
   return (
     <Panel title="Signal Lab">
       <div className="grid gap-3 lg:grid-cols-[1.1fr_1fr]">
@@ -139,6 +165,9 @@ export function AnalysisPanel({
           <p className="mb-2 text-xs uppercase tracking-wide text-slate-500">Tuner</p>
           <div className="mx-auto max-w-[360px]">
             <div className="relative aspect-square overflow-hidden rounded-xl border border-slate-800/90 bg-slate-950/70">
+              <div className="pointer-events-none absolute left-1/2 top-1 z-30 -translate-x-1/2">
+                <BearMascot pulse={bearPulse} />
+              </div>
               <ScopeCanvas
                 data={frame?.waveform ?? []}
                 width={420}
@@ -326,11 +355,19 @@ export function AnalysisPanel({
             {displayLanes.map((lane) => (
               <div
                 key={lane.key}
-                className={`rounded-lg border p-2 transition-all duration-[1400ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                className={`rounded-lg border p-2 transition-all duration-[2200ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
                   lane.state === "cooling"
-                    ? "translate-y-2 border-slate-800/70 bg-slate-900/45 opacity-35"
+                    ? "border-slate-800/70 bg-slate-900/45"
                     : "border-slate-800 bg-slate-900/70 opacity-100"
                 }`}
+                style={
+                  lane.state === "cooling"
+                    ? {
+                        opacity: 1 - lane.cooldownProgress * 0.75,
+                        transform: `translateY(${(lane.cooldownProgress * 12).toFixed(2)}px)`,
+                      }
+                    : undefined
+                }
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <span
@@ -373,6 +410,7 @@ function MiniMeta({ label, value }: { label: string; value: string }) {
 }
 
 function mergeScaleLanes(previous: DisplayLane[], incoming: IncomingLane[]): DisplayLane[] {
+  const nowMs = Date.now();
   const previousByKey = new Map(previous.map((lane) => [lane.key, lane]));
   const seen = new Set<string>();
   const next: DisplayLane[] = [];
@@ -384,7 +422,8 @@ function mergeScaleLanes(previous: DisplayLane[], incoming: IncomingLane[]): Dis
       ...lane,
       order: index,
       state: "active",
-      cooldownTicks: 0,
+      cooldownStartedAt: null,
+      cooldownProgress: 0,
       confidence: blendConfidence(prior?.confidence ?? lane.confidence, lane.confidence, 0.2),
     });
   });
@@ -394,18 +433,20 @@ function mergeScaleLanes(previous: DisplayLane[], incoming: IncomingLane[]): Dis
       return;
     }
 
-    const cooldownTicks = lane.cooldownTicks + 1;
+    const cooldownStartedAt = lane.cooldownStartedAt ?? nowMs;
+    const cooldownProgress = clamp((nowMs - cooldownStartedAt) / COOLDOWN_DURATION_MS, 0, 1);
     const confidence = clamp(lane.confidence * 0.88, 0, 1);
-    if (cooldownTicks > MAX_COOLDOWN_TICKS || confidence < 0.16) {
+    if (cooldownProgress >= 1 || confidence < 0.16) {
       return;
     }
 
     next.push({
       ...lane,
       state: "cooling",
-      cooldownTicks,
-      order: incoming.length + cooldownTicks,
-      confidence,
+      cooldownStartedAt,
+      cooldownProgress,
+      order: incoming.length + Math.round(cooldownProgress * 100),
+      confidence: clamp(confidence * (1 - cooldownProgress * 0.65), 0, 1),
     });
   });
 
@@ -416,8 +457,8 @@ function mergeScaleLanes(previous: DisplayLane[], incoming: IncomingLane[]): Dis
     if (a.state === "active") {
       return a.order - b.order;
     }
-    if (a.cooldownTicks !== b.cooldownTicks) {
-      return a.cooldownTicks - b.cooldownTicks;
+    if (a.cooldownProgress !== b.cooldownProgress) {
+      return a.cooldownProgress - b.cooldownProgress;
     }
     return a.order - b.order;
   });

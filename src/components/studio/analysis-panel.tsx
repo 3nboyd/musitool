@@ -165,7 +165,7 @@ export function AnalysisPanel({
           <p className="mb-2 text-xs uppercase tracking-wide text-slate-500">Tuner</p>
           <div className="mx-auto max-w-[360px]">
             <div className="relative aspect-square overflow-hidden rounded-xl border border-slate-800/90 bg-slate-950/70">
-              <div className="pointer-events-none absolute left-1/2 top-0 z-30 -translate-x-1/2 -translate-y-[48%]">
+              <div className="pointer-events-none absolute left-1/2 top-0 z-30 -translate-x-1/2 -translate-y-[18%]">
                 <BearMascot pulse={bearPulse} />
               </div>
               <ScopeCanvas

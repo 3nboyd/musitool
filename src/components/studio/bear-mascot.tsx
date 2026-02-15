@@ -4,131 +4,127 @@ interface BearMascotProps {
 
 export function BearMascot({ pulse }: BearMascotProps) {
   const clamped = clamp(pulse, 0, 1);
-  const wrapperTransform = `translateY(${(-3 - clamped * 5).toFixed(2)}px) scale(${(1 + clamped * 0.04).toFixed(3)})`;
-  const headTilt = `${(clamped * 1.8).toFixed(2)}deg`;
-  const smileLift = `${(clamped * 2.2).toFixed(2)}px`;
-  const blink = clamped > 0.86 ? 0.35 : 1;
-  const cupLift = `${(clamped * 3).toFixed(2)}px`;
-  const bodyBob = `${(clamped * 2).toFixed(2)}px`;
+  const wrapperTransform = `translateY(${(-1 - clamped * 2.6).toFixed(2)}px) scale(${(
+    1 +
+    clamped * 0.026
+  ).toFixed(3)})`;
+  const headTilt = `${(clamped * 1.2).toFixed(2)}deg`;
+  const cupLift = `${(clamped * 2.2).toFixed(2)}px`;
+  const blink = clamped > 0.88 ? 0.45 : 1;
 
   return (
-    <div
-      className="h-[188px] w-[176px] transition-transform duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
-      style={{ transform: wrapperTransform }}
-      aria-hidden
-    >
-      <svg viewBox="0 0 220 240" className="h-full w-full">
-        <ellipse cx="110" cy="226" rx="42" ry="8" fill="#0f172a" opacity="0.45" />
+    <div className="ib-bear-shell" style={{ transform: wrapperTransform }} aria-hidden>
+      <svg viewBox="0 0 200 180" className="h-[112px] w-[128px] drop-shadow-[0_8px_14px_rgba(2,6,23,0.55)]">
+        <defs>
+          <linearGradient id="ib_fur" x1="62" y1="36" x2="146" y2="142" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stopColor="#c2410c" />
+            <stop offset="1" stopColor="#92400e" />
+          </linearGradient>
+          <radialGradient id="ib_face" cx="0.5" cy="0.45" r="0.7">
+            <stop offset="0" stopColor="#f59e0b" />
+            <stop offset="1" stopColor="#d97706" />
+          </radialGradient>
+          <linearGradient id="ib_headphones" x1="34" y1="76" x2="166" y2="76" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stopColor="#475569" />
+            <stop offset="1" stopColor="#334155" />
+          </linearGradient>
+          <linearGradient id="ib_cup" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#64748b" />
+            <stop offset="1" stopColor="#334155" />
+          </linearGradient>
+        </defs>
 
         <path
-          d="M62 78C62 47 86 22 117 22C148 22 172 47 172 78V82"
+          d="M56 70C56 44 76 24 102 24C128 24 148 44 148 70"
           fill="none"
-          stroke="#334155"
-          strokeWidth="16"
+          stroke="url(#ib_headphones)"
+          strokeWidth="12"
           strokeLinecap="round"
         />
 
         <g
           style={{
             transform: `translateY(${cupLift})`,
-            transition: "transform 1200ms cubic-bezier(0.22,1,0.36,1)",
+            transformOrigin: "100px 80px",
+            transition: "transform 980ms cubic-bezier(0.22,1,0.36,1)",
           }}
         >
-          <rect x="46" y="84" width="26" height="62" rx="13" fill="#334155" />
-          <rect x="148" y="84" width="26" height="62" rx="13" fill="#334155" />
-          <rect x="51" y="89" width="16" height="52" rx="8" fill="#475569" />
-          <rect x="153" y="89" width="16" height="52" rx="8" fill="#475569" />
+          <rect x="34" y="72" width="18" height="44" rx="9" fill="url(#ib_cup)" />
+          <rect x="148" y="72" width="18" height="44" rx="9" fill="url(#ib_cup)" />
+          <rect x="38" y="76" width="10" height="36" rx="5" fill="#94a3b8" opacity="0.45" />
+          <rect x="152" y="76" width="10" height="36" rx="5" fill="#94a3b8" opacity="0.45" />
         </g>
 
         <g
           style={{
-            transform: `translateY(${bodyBob})`,
-            transition: "transform 1200ms cubic-bezier(0.22,1,0.36,1)",
+            transform: `rotate(${headTilt})`,
+            transformOrigin: "100px 92px",
+            transition: "transform 980ms cubic-bezier(0.22,1,0.36,1)",
           }}
         >
-          <circle cx="84" cy="88" r="24" fill="#92400e" />
-          <circle cx="136" cy="88" r="24" fill="#92400e" />
-          <circle cx="84" cy="88" r="10" fill="#d97706" />
-          <circle cx="136" cy="88" r="10" fill="#d97706" />
+          <circle cx="72" cy="72" r="19" fill="#92400e" />
+          <circle cx="128" cy="72" r="19" fill="#92400e" />
+          <circle cx="72" cy="72" r="8" fill="#d97706" />
+          <circle cx="128" cy="72" r="8" fill="#d97706" />
 
-          <g
+          <ellipse cx="100" cy="94" rx="43" ry="39" fill="url(#ib_fur)" />
+          <ellipse cx="100" cy="111" rx="26" ry="20" fill="url(#ib_face)" />
+
+          <ellipse
+            cx="85"
+            cy="92"
+            rx="5.6"
+            ry="6"
+            fill="#0f172a"
             style={{
-              transform: `rotate(${headTilt})`,
-              transformOrigin: "110px 112px",
-              transition: "transform 1200ms cubic-bezier(0.22,1,0.36,1)",
+              transform: `scaleY(${blink})`,
+              transformOrigin: "85px 92px",
+              transition: "transform 220ms ease-out",
             }}
-          >
-            <circle cx="110" cy="114" r="50" fill="#b45309" />
-            <ellipse cx="110" cy="132" rx="30" ry="23" fill="#f59e0b" />
+          />
+          <ellipse
+            cx="115"
+            cy="92"
+            rx="5.6"
+            ry="6"
+            fill="#0f172a"
+            style={{
+              transform: `scaleY(${blink})`,
+              transformOrigin: "115px 92px",
+              transition: "transform 220ms ease-out",
+            }}
+          />
+          <circle cx="87" cy="90" r="1.6" fill="#e2e8f0" />
+          <circle cx="117" cy="90" r="1.6" fill="#e2e8f0" />
 
-            <ellipse
-              cx="92"
-              cy="108"
-              rx="6.5"
-              ry="7"
-              fill="#0f172a"
-              style={{
-                transform: `scaleY(${blink})`,
-                transformOrigin: "92px 108px",
-                transition: "transform 300ms ease-out",
-              }}
-            />
-            <ellipse
-              cx="128"
-              cy="108"
-              rx="6.5"
-              ry="7"
-              fill="#0f172a"
-              style={{
-                transform: `scaleY(${blink})`,
-                transformOrigin: "128px 108px",
-                transition: "transform 300ms ease-out",
-              }}
-            />
-            <circle cx="95" cy="105" r="2" fill="#e2e8f0" />
-            <circle cx="131" cy="105" r="2" fill="#e2e8f0" />
-
-            <ellipse cx="110" cy="128" rx="7.5" ry="6.5" fill="#1e293b" />
-            <path
-              d="M95 141C99 149 105 153 110 153C115 153 121 149 125 141"
-              stroke="#1e293b"
-              strokeWidth="4.4"
-              strokeLinecap="round"
-              fill="none"
-              style={{
-                transform: `translateY(${-Number.parseFloat(smileLift)}px)`,
-                transformOrigin: "110px 147px",
-                transition: "transform 1200ms cubic-bezier(0.22,1,0.36,1)",
-              }}
-            />
-            <circle cx="85" cy="129" r="4.2" fill="#fb7185" opacity="0.7" />
-            <circle cx="135" cy="129" r="4.2" fill="#fb7185" opacity="0.7" />
-          </g>
-
-          <ellipse cx="110" cy="176" rx="40" ry="34" fill="#a16207" />
-          <ellipse cx="110" cy="183" rx="25" ry="20" fill="#f59e0b" />
-
-          <ellipse cx="76" cy="176" rx="12" ry="10" fill="#92400e" />
-          <ellipse cx="144" cy="176" rx="12" ry="10" fill="#92400e" />
-          <ellipse cx="76" cy="176" rx="6" ry="5" fill="#f59e0b" />
-          <ellipse cx="144" cy="176" rx="6" ry="5" fill="#f59e0b" />
+          <ellipse cx="100" cy="107" rx="6.8" ry="5.8" fill="#1e293b" />
+          <path
+            d="M89 118C93 124 97 127 100 127C103 127 107 124 111 118"
+            stroke="#1e293b"
+            strokeWidth="3.4"
+            strokeLinecap="round"
+            fill="none"
+          />
+          <circle cx="78" cy="108" r="3.5" fill="#fb7185" opacity="0.6" />
+          <circle cx="122" cy="108" r="3.5" fill="#fb7185" opacity="0.6" />
         </g>
 
-        <g
-          className="ib-bear-leg-left"
-          style={{ transformOrigin: "92px 186px" }}
-        >
-          <rect x="82" y="182" width="20" height="42" rx="10" fill="#92400e" />
-          <ellipse cx="92" cy="226" rx="12" ry="8" fill="#f59e0b" />
-        </g>
-        <g
-          className="ib-bear-leg-right"
-          style={{ transformOrigin: "128px 186px" }}
-        >
-          <rect x="118" y="182" width="20" height="42" rx="10" fill="#92400e" />
-          <ellipse cx="128" cy="226" rx="12" ry="8" fill="#f59e0b" />
-        </g>
+        <ellipse cx="100" cy="144" rx="35" ry="25" fill="#a16207" />
+        <ellipse cx="100" cy="149" rx="20" ry="14" fill="#f59e0b" />
+        <ellipse cx="72" cy="145" rx="10" ry="8" fill="#92400e" />
+        <ellipse cx="128" cy="145" rx="10" ry="8" fill="#92400e" />
+        <ellipse cx="72" cy="145" rx="5" ry="4" fill="#f59e0b" />
+        <ellipse cx="128" cy="145" rx="5" ry="4" fill="#f59e0b" />
       </svg>
+
+      <div className="ib-bear-legs">
+        <div className="ib-bear-leg ib-bear-leg-left">
+          <div className="ib-bear-foot" />
+        </div>
+        <div className="ib-bear-leg ib-bear-leg-right">
+          <div className="ib-bear-foot" />
+        </div>
+      </div>
     </div>
   );
 }

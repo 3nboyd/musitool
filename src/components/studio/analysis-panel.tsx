@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Note, Scale } from "@tonaljs/tonal";
-import { BearMascot } from "@/components/studio/bear-mascot";
 import { Panel } from "@/components/ui/panel";
 import { ScopeCanvas } from "@/components/studio/scope-canvas";
 import { TunerMeter } from "@/components/studio/tuner-meter";
@@ -118,8 +117,6 @@ export function AnalysisPanel({
 
     return [featuredArpLane, ...scaleLanes];
   }, [featuredArpLane, rawScaleLanes]);
-  const lastBearNoteRef = useRef<string | null>(null);
-  const [bearPulse, setBearPulse] = useState(0);
   const [displayLanes, setDisplayLanes] = useState<DisplayLane[]>(() =>
     incomingLanes.map((lane) => ({
       ...lane,
@@ -137,27 +134,6 @@ export function AnalysisPanel({
     return () => window.cancelAnimationFrame(frame);
   }, [incomingLanes]);
 
-  useEffect(() => {
-    const note = frame?.note ?? null;
-    if (!note || note === lastBearNoteRef.current) {
-      return;
-    }
-
-    lastBearNoteRef.current = note;
-    const kickoff = window.requestAnimationFrame(() => setBearPulse(1));
-
-    const t1 = window.setTimeout(() => setBearPulse(0.65), 260);
-    const t2 = window.setTimeout(() => setBearPulse(0.32), 920);
-    const t3 = window.setTimeout(() => setBearPulse(0), 2200);
-
-    return () => {
-      window.cancelAnimationFrame(kickoff);
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-      window.clearTimeout(t3);
-    };
-  }, [frame?.note]);
-
   return (
     <Panel title="Signal Lab">
       <div className="grid gap-3 lg:grid-cols-[1.1fr_1fr]">
@@ -165,9 +141,6 @@ export function AnalysisPanel({
           <p className="mb-2 text-xs uppercase tracking-wide text-slate-500">Tuner</p>
           <div className="mx-auto max-w-[360px]">
             <div className="relative aspect-square overflow-hidden rounded-xl border border-slate-800/90 bg-slate-950/70">
-              <div className="pointer-events-none absolute left-1/2 top-0 z-30 -translate-x-1/2 -translate-y-[18%]">
-                <BearMascot pulse={bearPulse} />
-              </div>
               <ScopeCanvas
                 data={frame?.waveform ?? []}
                 width={420}

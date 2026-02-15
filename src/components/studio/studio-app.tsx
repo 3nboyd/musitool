@@ -7,7 +7,6 @@ import { MidiPanel } from "@/components/studio/midi-panel";
 import { SessionPanel } from "@/components/studio/session-panel";
 import { SpectrumBackdrop } from "@/components/studio/spectrum-backdrop";
 import { TempoPanel } from "@/components/studio/tempo-panel";
-import { TheoryPanel } from "@/components/studio/theory-panel";
 import { TransportPanel } from "@/components/studio/transport-panel";
 import { useAudioAnalysis } from "@/hooks/useAudioAnalysis";
 import { useMidi } from "@/hooks/useMidi";
@@ -18,9 +17,9 @@ import { exportChart } from "@/lib/theory/chart-export";
 import { useStudioStore } from "@/store/useStudioStore";
 import { SessionState, Subdivision } from "@/types/studio";
 
-type RightPanelId = "form" | "tempo" | "theory" | "midi" | "session";
+type RightPanelId = "form" | "tempo" | "midi" | "session";
 
-const DEFAULT_RIGHT_PANEL_ORDER: RightPanelId[] = ["form", "tempo", "theory", "midi", "session"];
+const DEFAULT_RIGHT_PANEL_ORDER: RightPanelId[] = ["form", "tempo", "midi", "session"];
 
 export function StudioApp() {
   const frame = useStudioStore((state) => state.latestFrame);
@@ -292,30 +291,6 @@ export function StudioApp() {
           }}
         />
       ),
-      theory: (
-        <TheoryPanel
-          context={theoryContext}
-          recommendations={recommendations}
-          memory={theoryMemory}
-          onSetKeyControlMode={(mode) => {
-            setTheoryControl({
-              keyControlMode: mode,
-            });
-          }}
-          onSetAutoDetectKeyChanges={(value) => {
-            setTheoryControl({
-              autoDetectKeyChanges: value,
-            });
-          }}
-          onSetManualKeyScale={(key, scale) => {
-            setTheoryControl({
-              manualKey: key,
-              manualScale: scale,
-              keyControlMode: "manual",
-            });
-          }}
-        />
-      ),
       midi: (
         <MidiPanel
           supported={midi.supported}
@@ -373,7 +348,6 @@ export function StudioApp() {
       midi,
       midiEvents,
       quantizeRecorded,
-      recommendations,
       recordedEvents,
       recordingMidi,
       refreshSessions,
@@ -386,8 +360,6 @@ export function StudioApp() {
       setBarsPerPage,
       setFormDisplayMode,
       setSessionName,
-      setTheoryControl,
-      theoryContext,
       theoryMemory,
       updateAnalysisSettings,
       toggleMidiRecording,
@@ -437,6 +409,8 @@ export function StudioApp() {
           <div className="space-y-4">
             <AnalysisPanel
               frame={frame}
+              theoryContext={theoryContext}
+              theoryMemory={theoryMemory}
               recommendations={recommendations}
               tunerSettings={analysisSettings.tuner}
               onUpdateTunerSettings={(update) => {
@@ -445,6 +419,23 @@ export function StudioApp() {
                     ...analysisSettings.tuner,
                     ...update,
                   },
+                });
+              }}
+              onSetKeyControlMode={(mode) => {
+                setTheoryControl({
+                  keyControlMode: mode,
+                });
+              }}
+              onSetAutoDetectKeyChanges={(value) => {
+                setTheoryControl({
+                  autoDetectKeyChanges: value,
+                });
+              }}
+              onSetManualKeyScale={(key, scale) => {
+                setTheoryControl({
+                  manualKey: key,
+                  manualScale: scale,
+                  keyControlMode: "manual",
                 });
               }}
             />
@@ -521,11 +512,9 @@ function computeStableTempo(samples: number[]): number | null {
 function rightPanelLabel(id: RightPanelId): string {
   switch (id) {
     case "form":
-      return "Form";
+      return "Form Map";
     case "tempo":
       return "Tempo";
-    case "theory":
-      return "Theory";
     case "midi":
       return "MIDI";
     case "session":

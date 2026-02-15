@@ -99,8 +99,8 @@ export function FormSheetPanel({
 
   return (
     <Panel
-      title="Form Sheet"
-      subtitle="32-bar default performance chart with compressed repeat display and full-form export"
+      title="Form Map"
+      subtitle="32-bar default roadmap with compressed repeat display and full-form export"
     >
       <div className="flex flex-wrap items-center gap-2">
         <label className="text-xs text-slate-300">

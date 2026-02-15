@@ -15,12 +15,12 @@ import {
 
 const ROOTS = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
 const SCALES = ["major", "minor", "dorian", "mixolydian", "lydian", "phrygian"];
-const SCALE_RETAIN_MARGIN = 2.2;
-const SCALE_SWITCH_CONFIDENCE_BONUS = 0.12;
-const MIN_KEY_SWITCH_HOLD_MS = 4200;
-const MIN_KEY_SWITCH_BARS = 2.5;
-const RECOMMENDATION_MIN_HOLD_MS = 12000;
-const RECOMMENDATION_HOLD_BARS = 8;
+const SCALE_RETAIN_MARGIN = 3.8;
+const SCALE_SWITCH_CONFIDENCE_BONUS = 0.18;
+const MIN_KEY_SWITCH_HOLD_MS = 20000;
+const MIN_KEY_SWITCH_BARS = 10;
+const RECOMMENDATION_MIN_HOLD_MS = 16000;
+const RECOMMENDATION_HOLD_BARS = 12;
 
 interface TheoryAnalysisInput {
   noteHistory: string[];
@@ -334,7 +334,7 @@ function chooseStableScale(
   const confidenceThreshold = memory.keyConfidence + SCALE_SWITCH_CONFIDENCE_BONUS;
   const holdMs = getKeySwitchHoldMs(bpm);
   const inHoldWindow = nowMs - memory.lastKeyChangeAt < holdMs;
-  const strongOverride = scoreMargin >= 4.8 && best.confidence >= confidenceThreshold + 0.1;
+  const strongOverride = scoreMargin >= 8.5 && best.confidence >= confidenceThreshold + 0.2;
 
   if (
     scoreMargin < SCALE_RETAIN_MARGIN ||

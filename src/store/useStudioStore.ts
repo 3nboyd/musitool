@@ -44,6 +44,7 @@ const defaultAnalysisSettings: AnalysisSettings = {
   fftSize: 2048,
   smoothingTimeConstant: 0.85,
   fileMonitorGain: 0.85,
+  targetTempoBpm: 100,
   tuner: {
     tolerancePreset: "standard",
     greenRangeCents: 6,
@@ -235,6 +236,10 @@ export const useStudioStore = create<StudioState>((set, get) => ({
           ...update,
           tuner: nextTuner,
           fileMonitorGain: clamp(update.fileMonitorGain ?? state.analysisSettings.fileMonitorGain, 0, 1),
+          targetTempoBpm:
+            update.targetTempoBpm === null
+              ? null
+              : clamp(update.targetTempoBpm ?? state.analysisSettings.targetTempoBpm ?? 100, 30, 260),
         },
       };
     }),
@@ -386,6 +391,14 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         ...defaultAnalysisSettings,
         ...incomingAnalysis,
         fileMonitorGain: clamp(incomingAnalysis.fileMonitorGain ?? defaultAnalysisSettings.fileMonitorGain, 0, 1),
+        targetTempoBpm:
+          incomingAnalysis.targetTempoBpm === null
+            ? null
+            : clamp(
+                incomingAnalysis.targetTempoBpm ?? defaultAnalysisSettings.targetTempoBpm ?? 100,
+                30,
+                260
+              ),
         tuner: {
           ...defaultAnalysisSettings.tuner,
           ...(incomingAnalysis.tuner ?? {}),

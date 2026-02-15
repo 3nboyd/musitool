@@ -119,6 +119,7 @@ export interface AnalysisSettings {
   fftSize: number;
   smoothingTimeConstant: number;
   fileMonitorGain: number;
+  targetTempoBpm: number | null;
   tuner: TunerSettings;
 }
 

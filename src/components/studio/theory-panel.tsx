@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { Scale } from "@tonaljs/tonal";
 import { Panel } from "@/components/ui/panel";
 import { buildCircleOfFifths } from "@/lib/theory/recommendations";
 import { TheoryContext, TheoryMemory, TheoryRecommendation } from "@/types/studio";
@@ -14,10 +13,6 @@ export function TheoryPanel({ context, recommendations, memory }: TheoryPanelPro
   const fifths = useMemo(() => buildCircleOfFifths(context.keyGuess), [context.keyGuess]);
   const progression = memory.progression.slice(-8);
   const formPatterns = memory.formPatterns.slice(0, 4);
-  const scaleRecommendations = useMemo(
-    () => recommendations.filter((item) => item.type === "scale"),
-    [recommendations]
-  );
   const compactRecommendations = useMemo(
     () => recommendations.filter((item) => item.type !== "scale").slice(0, 6),
     [recommendations]
@@ -90,36 +85,6 @@ export function TheoryPanel({ context, recommendations, memory }: TheoryPanelPro
       </div>
 
       <div className="mt-4 space-y-2">
-        <p className="text-xs uppercase tracking-wide text-slate-500">Improv Scale Lanes</p>
-        {scaleRecommendations.length === 0 ? (
-          <p className="rounded-lg border border-slate-800 bg-slate-950/80 p-3 text-sm text-slate-400">
-            Start audio or MIDI input to receive note and chord recommendations.
-          </p>
-        ) : (
-          scaleRecommendations.map((item, index) => (
-            <div
-              key={`${item.id}-${index}`}
-              className="rounded-lg border border-slate-800 bg-slate-950/80 p-2 text-sm"
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="font-medium text-slate-200">{item.label}</p>
-                <span className="text-xs text-slate-400">{Math.round(item.confidence * 100)}%</span>
-                {notesFromScale(item.label).map((note) => (
-                  <span
-                    key={`${item.id}-${note}`}
-                    className="rounded border border-slate-700 bg-slate-900 px-2 py-0.5 text-[11px] text-slate-200"
-                  >
-                    {note}
-                  </span>
-                ))}
-              </div>
-              <p className="mt-1 text-xs text-slate-400">{item.reason}</p>
-            </div>
-          ))
-        )}
-      </div>
-
-      <div className="mt-4 space-y-2">
         <p className="text-xs uppercase tracking-wide text-slate-500">Note / Chord Suggestions</p>
         {compactRecommendations.length === 0 ? (
           <p className="rounded-lg border border-slate-800 bg-slate-950/80 p-3 text-sm text-slate-400">
@@ -150,9 +115,4 @@ function MetaBlock({ label, value }: { label: string; value: string }) {
       <p className="mt-1 text-sm font-medium text-slate-200">{value}</p>
     </div>
   );
-}
-
-function notesFromScale(scaleLabel: string): string[] {
-  const notes = Scale.get(scaleLabel).notes;
-  return notes.slice(0, 8);
 }

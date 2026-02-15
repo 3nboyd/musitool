@@ -13,6 +13,7 @@ describe("session storage", () => {
         fftSize: 2048,
         smoothingTimeConstant: 0.85,
         fileMonitorGain: 0.85,
+        targetTempoBpm: 100,
         tuner: {
           tolerancePreset: "standard",
           greenRangeCents: 6,

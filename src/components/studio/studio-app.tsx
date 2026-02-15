@@ -1,15 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnalysisPanel } from "@/components/studio/analysis-panel";
 import { FormSheetPanel } from "@/components/studio/form-sheet-panel";
 import { MidiPanel } from "@/components/studio/midi-panel";
-import { MetronomePanel } from "@/components/studio/metronome-panel";
 import { SessionPanel } from "@/components/studio/session-panel";
+import { SpectrumBackdrop } from "@/components/studio/spectrum-backdrop";
 import { TheoryPanel } from "@/components/studio/theory-panel";
 import { TransportPanel } from "@/components/studio/transport-panel";
 import { useAudioAnalysis } from "@/hooks/useAudioAnalysis";
-import { useMetronome } from "@/hooks/useMetronome";
 import { useMidi } from "@/hooks/useMidi";
 import { useTheoryWorker } from "@/hooks/useTheoryWorker";
 import { SessionRecord, deleteSession, listSessions, loadSession, saveSession } from "@/lib/storage/db";
@@ -18,14 +17,18 @@ import { exportChart } from "@/lib/theory/chart-export";
 import { useStudioStore } from "@/store/useStudioStore";
 import { SessionState, Subdivision } from "@/types/studio";
 
+type RightPanelId = "theory" | "form" | "midi" | "session";
+
+const DEFAULT_RIGHT_PANEL_ORDER: RightPanelId[] = ["theory", "form", "midi", "session"];
+
 export function StudioApp() {
   const frame = useStudioStore((state) => state.latestFrame);
+  const frameHistory = useStudioStore((state) => state.frameHistory);
   const noteHistory = useStudioStore((state) => state.noteHistory);
+  const source = useStudioStore((state) => state.source);
   const theoryContext = useStudioStore((state) => state.theoryContext);
   const theoryMemory = useStudioStore((state) => state.theoryMemory);
   const recommendations = useStudioStore((state) => state.recommendations);
-  const metronomePattern = useStudioStore((state) => state.metronome);
-  const updateMetronome = useStudioStore((state) => state.updateMetronome);
   const sessionName = useStudioStore((state) => state.sessionName);
   const setSessionName = useStudioStore((state) => state.setSessionName);
   const createSessionSnapshot = useStudioStore((state) => state.createSessionSnapshot);
@@ -33,7 +36,6 @@ export function StudioApp() {
   const setTheory = useStudioStore((state) => state.setTheory);
   const analysisSettings = useStudioStore((state) => state.analysisSettings);
   const updateAnalysisSettings = useStudioStore((state) => state.updateAnalysisSettings);
-  const source = useStudioStore((state) => state.source);
 
   const midiEvents = useStudioStore((state) => state.midiEvents);
   const recordingMidi = useStudioStore((state) => state.recordingMidi);
@@ -54,9 +56,8 @@ export function StudioApp() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [liveTempo, setLiveTempo] = useState<number | null>(null);
-  const [tempoConfidence, setTempoConfidence] = useState<number | null>(null);
-  const [autoSyncTempo, setAutoSyncTempo] = useState(false);
-  const lastAutoSyncAtRef = useRef(0);
+  const [rightPanelOrder, setRightPanelOrder] = useState<RightPanelId[]>(DEFAULT_RIGHT_PANEL_ORDER);
+  const draggingPanelRef = useRef<RightPanelId | null>(null);
   const liveTempoWindowRef = useRef<number[]>([]);
 
   const { requestTheory } = useTheoryWorker({
@@ -87,8 +88,6 @@ export function StudioApp() {
     tunerSettings: analysisSettings.tuner,
   });
 
-  const metronome = useMetronome();
-  const toggleMetronome = metronome.toggle;
   const midi = useMidi();
 
   const refreshSessions = useCallback(async () => {
@@ -106,9 +105,9 @@ export function StudioApp() {
 
   useEffect(() => {
     if (source === "midi" && noteHistory.length > 0) {
-      queueTheoryRequest(noteHistory, metronomePattern.bpm);
+      queueTheoryRequest(noteHistory, analysisSettings.targetTempoBpm ?? liveTempo);
     }
-  }, [metronomePattern.bpm, noteHistory, queueTheoryRequest, source]);
+  }, [analysisSettings.targetTempoBpm, liveTempo, noteHistory, queueTheoryRequest, source]);
 
   useEffect(() => {
     const detectedBpm = frame?.bpm;
@@ -116,44 +115,12 @@ export function StudioApp() {
       return;
     }
 
-    const referenceTempo = liveTempo ?? metronomePattern.bpm;
+    const referenceTempo = liveTempo ?? analysisSettings.targetTempoBpm ?? detectedBpm;
     const normalized = normalizeTempoToReference(detectedBpm, referenceTempo);
-    const window = [...liveTempoWindowRef.current, normalized].slice(-20);
-    liveTempoWindowRef.current = window;
-    setLiveTempo(computeStableTempo(window));
-    setTempoConfidence(computeTempoConfidence(window));
-  }, [frame?.bpm, liveTempo, metronomePattern.bpm]);
-
-  useEffect(() => {
-    if (!autoSyncTempo || liveTempo === null) {
-      return;
-    }
-
-    if ((tempoConfidence ?? 0) < 0.58) {
-      return;
-    }
-
-    const now = Date.now();
-    const nextBpm = Math.round(liveTempo);
-    if (Math.abs(nextBpm - metronomePattern.bpm) >= 1 && now - lastAutoSyncAtRef.current > 1800) {
-      updateMetronome({ bpm: nextBpm });
-      lastAutoSyncAtRef.current = now;
-    }
-  }, [autoSyncTempo, liveTempo, metronomePattern.bpm, tempoConfidence, updateMetronome]);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.code === "Space" && !(event.target instanceof HTMLInputElement) && !(event.target instanceof HTMLTextAreaElement)) {
-        event.preventDefault();
-        toggleMetronome();
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [toggleMetronome]);
+    const nextWindow = [...liveTempoWindowRef.current, normalized].slice(-20);
+    liveTempoWindowRef.current = nextWindow;
+    setLiveTempo(computeStableTempo(nextWindow));
+  }, [analysisSettings.targetTempoBpm, frame?.bpm, liveTempo]);
 
   const saveCurrentSession = useCallback(async () => {
     setSaving(true);
@@ -226,13 +193,16 @@ export function StudioApp() {
         }
 
         applySession(data);
-        queueTheoryRequest(data.noteHistory ?? [], data.lastTheoryContext?.bpm ?? metronomePattern.bpm);
+        queueTheoryRequest(
+          data.noteHistory ?? [],
+          data.lastTheoryContext?.bpm ?? analysisSettings.targetTempoBpm ?? liveTempo
+        );
         setNotice(`Imported session \"${data.name}\".`);
       } catch {
         setNotice("Import failed: invalid session JSON.");
       }
     },
-    [applySession, metronomePattern.bpm, queueTheoryRequest]
+    [analysisSettings.targetTempoBpm, applySession, liveTempo, queueTheoryRequest]
   );
 
   const toggleMidiRecording = useCallback(() => {
@@ -240,40 +210,23 @@ export function StudioApp() {
       setRecordingMidi(false);
       return;
     }
-
     setRecordingMidi(true, Date.now());
   }, [recordingMidi, setRecordingMidi]);
 
   const quantizeRecorded = useCallback(
     (subdivision: Subdivision) => {
+      const quantizeBpm = Math.round(analysisSettings.targetTempoBpm ?? liveTempo ?? 100);
       const quantized = quantizeMidiEvents(recordedEvents, {
-        bpm: metronomePattern.bpm,
+        bpm: quantizeBpm,
         subdivision,
         strength: 1,
       });
 
       setRecordedEvents(quantized);
-      setNotice(`Quantized phrase to ${subdivision} grid.`);
+      setNotice(`Quantized phrase to ${subdivision} grid at ${quantizeBpm} BPM.`);
     },
-    [metronomePattern.bpm, recordedEvents, setRecordedEvents]
+    [analysisSettings.targetTempoBpm, liveTempo, recordedEvents, setRecordedEvents]
   );
-
-  const syncToLiveTempo = useCallback(() => {
-    if (liveTempo === null) {
-      setNotice("Live tempo is not detected yet.");
-      return;
-    }
-
-    const confidence = tempoConfidence ?? 0;
-    if (confidence < 0.45) {
-      setNotice("Tempo detection is unstable. Play steady quarter notes, then sync again.");
-      return;
-    }
-
-    const nextBpm = Math.round(liveTempo);
-    updateMetronome({ bpm: nextBpm });
-    setNotice(`Metronome locked to ${nextBpm} BPM (${Math.round(confidence * 100)}% confidence).`);
-  }, [liveTempo, tempoConfidence, updateMetronome]);
 
   const downloadChartSheet = useCallback(
     async (format: "txt" | "pdf" | "ireal" | "musicxml", condensed: boolean) => {
@@ -302,25 +255,120 @@ export function StudioApp() {
     ]
   );
 
+  const rightPanels = useMemo<Record<RightPanelId, ReactNode>>(
+    () => ({
+      theory: <TheoryPanel context={theoryContext} recommendations={recommendations} memory={theoryMemory} />,
+      form: (
+        <FormSheetPanel
+          expandedBars={theoryMemory.expandedBars}
+          compressedSections={theoryMemory.compressedSections}
+          expandedToCompressedMap={theoryMemory.expandedToCompressedMap}
+          displayMode={theoryMemory.displayMode}
+          barsPerPage={theoryMemory.barsPerPage}
+          currentExpandedBarIndex={theoryMemory.currentExpandedBarIndex}
+          onSetDisplayMode={setFormDisplayMode}
+          onSetBarsPerPage={setBarsPerPage}
+          onUpdateExpandedBar={updateFormSheetBar}
+          onInsertExpandedBar={insertFormSheetBar}
+          onRemoveExpandedBar={removeFormSheetBar}
+          onUpdateCompressedSectionLabel={updateCompressedSectionLabel}
+          onUpdateCompressedSectionBars={updateCompressedSectionBars}
+          onUnlinkCompressedSectionRepeat={unlinkCompressedSectionRepeat}
+          onDownload={(format, condensed) => {
+            void downloadChartSheet(format, condensed);
+          }}
+        />
+      ),
+      midi: (
+        <MidiPanel
+          supported={midi.supported}
+          connected={midi.connected}
+          connecting={midi.connecting}
+          devices={midi.devices}
+          events={midiEvents}
+          recording={recordingMidi}
+          recordedEvents={recordedEvents}
+          onConnect={() => {
+            void midi.connect();
+          }}
+          onDisconnect={midi.disconnect}
+          onToggleRecording={toggleMidiRecording}
+          onReplay={midi.replayRecorded}
+          onClearRecorded={clearRecordedEvents}
+          onQuantize={quantizeRecorded}
+        />
+      ),
+      session: (
+        <SessionPanel
+          sessionName={sessionName}
+          sessions={sessions}
+          saving={saving}
+          onSessionNameChange={setSessionName}
+          onSave={() => {
+            void saveCurrentSession();
+          }}
+          onRefresh={() => {
+            void refreshSessions();
+          }}
+          onLoad={(id) => {
+            void loadStoredSession(id);
+          }}
+          onDelete={(id) => {
+            void removeStoredSession(id);
+          }}
+          onExportJson={exportSessionJson}
+          onImportJson={(file) => {
+            void importSessionJson(file);
+          }}
+        />
+      ),
+    }),
+    [
+      clearRecordedEvents,
+      downloadChartSheet,
+      exportSessionJson,
+      importSessionJson,
+      insertFormSheetBar,
+      loadStoredSession,
+      midi,
+      midiEvents,
+      quantizeRecorded,
+      recommendations,
+      recordedEvents,
+      recordingMidi,
+      refreshSessions,
+      removeFormSheetBar,
+      removeStoredSession,
+      saveCurrentSession,
+      saving,
+      sessionName,
+      sessions,
+      setBarsPerPage,
+      setFormDisplayMode,
+      setSessionName,
+      theoryContext,
+      theoryMemory,
+      toggleMidiRecording,
+      unlinkCompressedSectionRepeat,
+      updateCompressedSectionBars,
+      updateCompressedSectionLabel,
+      updateFormSheetBar,
+    ]
+  );
+
   const noticeText = useMemo(() => notice, [notice]);
-  const tempoDelta = useMemo(() => {
-    if (liveTempo === null) {
-      return null;
-    }
-    return Math.abs(metronomePattern.bpm - liveTempo);
-  }, [liveTempo, metronomePattern.bpm]);
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_15%_20%,rgba(56,189,248,0.12),transparent_45%),radial-gradient(circle_at_85%_10%,rgba(99,102,241,0.14),transparent_40%),linear-gradient(180deg,#020617_0%,#020617_45%,#020617_100%)] px-4 py-6 text-slate-100 md:px-8">
-      <main className="mx-auto max-w-7xl space-y-4">
+    <div className="relative min-h-screen bg-slate-950 px-4 py-6 text-slate-100 md:px-8">
+      <SpectrumBackdrop data={frame?.spectrum ?? []} />
+      <main className="relative mx-auto max-w-7xl space-y-4">
         <header className="space-y-2">
           <p className="text-xs uppercase tracking-[0.28em] text-cyan-300/90">MusiTool</p>
           <h1 className="text-3xl font-semibold tracking-tight">Music Analysis Studio</h1>
           <p className="max-w-4xl text-sm text-slate-300">
-            Live audio and MIDI diagnostics for production research: oscilloscope, pitch and tempo analysis,
-            theory recommendations, advanced metronome, and phrase capture.
+            Live audio and MIDI diagnostics for improvisers: oscilloscope, circular tuner, tempo consistency,
+            theory guidance, form mapping, and phrase capture.
           </p>
-          <p className="text-xs text-slate-500">Shortcut: press Space to start/stop metronome.</p>
         </header>
 
         <TransportPanel
@@ -346,7 +394,16 @@ export function StudioApp() {
           <div className="space-y-4">
             <AnalysisPanel
               frame={frame}
+              frameHistory={frameHistory}
+              liveTempoBpm={liveTempo}
+              desiredTempoBpm={analysisSettings.targetTempoBpm}
+              recommendations={recommendations}
               tunerSettings={analysisSettings.tuner}
+              onChangeDesiredTempo={(bpm) => {
+                updateAnalysisSettings({
+                  targetTempoBpm: bpm,
+                });
+              }}
               onUpdateTunerSettings={(update) => {
                 updateAnalysisSettings({
                   tuner: {
@@ -356,88 +413,46 @@ export function StudioApp() {
                 });
               }}
             />
-            <MetronomePanel
-              pattern={metronomePattern}
-              running={metronome.isRunning}
-              currentBeat={metronome.currentBeat}
-              liveTempo={liveTempo}
-              tempoDelta={tempoDelta}
-              tempoConfidence={tempoConfidence}
-              autoSyncTempo={autoSyncTempo}
-              fileMonitorGain={analysisSettings.fileMonitorGain}
-              onUpdate={updateMetronome}
-              onUpdateFileMonitorGain={(value) => {
-                updateAnalysisSettings({
-                  fileMonitorGain: value,
-                });
-              }}
-              onToggle={metronome.toggle}
-              onTapTempo={metronome.tapTempo}
-              onSyncToLive={syncToLiveTempo}
-              onToggleAutoSyncTempo={() => setAutoSyncTempo((value) => !value)}
-            />
           </div>
 
-          <div className="space-y-4">
-            <TheoryPanel context={theoryContext} recommendations={recommendations} memory={theoryMemory} />
-            <FormSheetPanel
-              expandedBars={theoryMemory.expandedBars}
-              compressedSections={theoryMemory.compressedSections}
-              expandedToCompressedMap={theoryMemory.expandedToCompressedMap}
-              displayMode={theoryMemory.displayMode}
-              barsPerPage={theoryMemory.barsPerPage}
-              currentExpandedBarIndex={theoryMemory.currentExpandedBarIndex}
-              onSetDisplayMode={setFormDisplayMode}
-              onSetBarsPerPage={setBarsPerPage}
-              onUpdateExpandedBar={updateFormSheetBar}
-              onInsertExpandedBar={insertFormSheetBar}
-              onRemoveExpandedBar={removeFormSheetBar}
-              onUpdateCompressedSectionLabel={updateCompressedSectionLabel}
-              onUpdateCompressedSectionBars={updateCompressedSectionBars}
-              onUnlinkCompressedSectionRepeat={unlinkCompressedSectionRepeat}
-              onDownload={(format, condensed) => {
-                void downloadChartSheet(format, condensed);
-              }}
-            />
-            <MidiPanel
-              supported={midi.supported}
-              connected={midi.connected}
-              connecting={midi.connecting}
-              devices={midi.devices}
-              events={midiEvents}
-              recording={recordingMidi}
-              recordedEvents={recordedEvents}
-              onConnect={() => {
-                void midi.connect();
-              }}
-              onDisconnect={midi.disconnect}
-              onToggleRecording={toggleMidiRecording}
-              onReplay={midi.replayRecorded}
-              onClearRecorded={clearRecordedEvents}
-              onQuantize={quantizeRecorded}
-            />
-            <SessionPanel
-              sessionName={sessionName}
-              sessions={sessions}
-              saving={saving}
-              onSessionNameChange={setSessionName}
-              onSave={() => {
-                void saveCurrentSession();
-              }}
-              onRefresh={() => {
-                void refreshSessions();
-              }}
-              onLoad={(id) => {
-                void loadStoredSession(id);
-              }}
-              onDelete={(id) => {
-                void removeStoredSession(id);
-              }}
-              onExportJson={exportSessionJson}
-              onImportJson={(file) => {
-                void importSessionJson(file);
-              }}
-            />
+          <div className="space-y-3">
+            <p className="rounded-md border border-slate-800/70 bg-slate-950/70 px-3 py-2 text-xs text-slate-300">
+              Drag cards to reorder the right column.
+            </p>
+            {rightPanelOrder.map((panelId) => (
+              <div
+                key={panelId}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                }}
+                onDrop={() => {
+                  const sourcePanel = draggingPanelRef.current;
+                  if (!sourcePanel || sourcePanel === panelId) {
+                    return;
+                  }
+                  setRightPanelOrder((previous) => reorderPanels(previous, sourcePanel, panelId));
+                  draggingPanelRef.current = null;
+                }}
+                className="rounded-xl border border-transparent transition hover:border-slate-700/80"
+              >
+                <div className="mb-1 flex items-center justify-between rounded-md border border-slate-800/70 bg-slate-900/70 px-3 py-1">
+                  <span className="text-[10px] uppercase tracking-[0.24em] text-slate-400">
+                    {rightPanelLabel(panelId)}
+                  </span>
+                  <span
+                    draggable
+                    onDragStart={(event) => {
+                      draggingPanelRef.current = panelId;
+                      event.dataTransfer.effectAllowed = "move";
+                    }}
+                    className="cursor-grab text-[10px] text-slate-500"
+                  >
+                    drag
+                  </span>
+                </div>
+                {rightPanels[panelId]}
+              </div>
+            ))}
           </div>
         </div>
       </main>
@@ -465,23 +480,37 @@ function computeStableTempo(samples: number[]): number | null {
   const trimmed = sorted.slice(trim, sorted.length - trim);
   const pool = trimmed.length >= 3 ? trimmed : sorted;
   const sum = pool.reduce((acc, value) => acc + value, 0);
-
   return sum / pool.length;
 }
 
-function computeTempoConfidence(samples: number[]): number | null {
-  if (samples.length < 4) {
-    return null;
+function rightPanelLabel(id: RightPanelId): string {
+  switch (id) {
+    case "theory":
+      return "Theory";
+    case "form":
+      return "Form";
+    case "midi":
+      return "MIDI";
+    case "session":
+      return "Session";
+    default:
+      return id;
   }
-
-  const avg = samples.reduce((acc, value) => acc + value, 0) / samples.length;
-  const variance =
-    samples.reduce((acc, value) => acc + (value - avg) * (value - avg), 0) / samples.length;
-  const deviation = Math.sqrt(variance);
-
-  return clamp(1 - deviation / 6, 0.1, 1);
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
+function reorderPanels(
+  panels: RightPanelId[],
+  source: RightPanelId,
+  target: RightPanelId
+): RightPanelId[] {
+  const sourceIndex = panels.indexOf(source);
+  const targetIndex = panels.indexOf(target);
+  if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
+    return panels;
+  }
+
+  const next = [...panels];
+  const [moved] = next.splice(sourceIndex, 1);
+  next.splice(targetIndex, 0, moved);
+  return next;
 }

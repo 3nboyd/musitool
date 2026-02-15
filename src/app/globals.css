@@ -37,3 +37,31 @@ button,
 textarea {
   font-family: var(--font-plex-mono), monospace;
 }
+
+@keyframes ibBearLegLeft {
+  0%,
+  100% {
+    transform: rotate(10deg);
+  }
+  50% {
+    transform: rotate(-8deg);
+  }
+}
+
+@keyframes ibBearLegRight {
+  0%,
+  100% {
+    transform: rotate(-10deg);
+  }
+  50% {
+    transform: rotate(8deg);
+  }
+}
+
+.ib-bear-leg-left {
+  animation: ibBearLegLeft 4.2s ease-in-out infinite;
+}
+
+.ib-bear-leg-right {
+  animation: ibBearLegRight 4.2s ease-in-out infinite;
+}

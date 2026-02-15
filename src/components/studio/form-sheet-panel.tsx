@@ -1,107 +1,306 @@
+"use client";
+
+import { useMemo, useState } from "react";
 import { Panel } from "@/components/ui/panel";
-import { TheoryFormPattern } from "@/types/studio";
+import {
+  CompressedSection,
+  ExpandedToCompressedMapItem,
+  FormDisplayMode,
+} from "@/types/studio";
+
+type ExportFormat = "txt" | "pdf" | "ireal" | "musicxml";
 
 interface FormSheetPanelProps {
-  bars: string[];
-  patterns: TheoryFormPattern[];
-  onChangeBar: (index: number, chord: string) => void;
-  onInsertBar: (index: number) => void;
-  onRemoveBar: (index: number) => void;
-  onDownload: () => void;
+  expandedBars: string[];
+  compressedSections: CompressedSection[];
+  expandedToCompressedMap: ExpandedToCompressedMapItem[];
+  displayMode: FormDisplayMode;
+  barsPerPage: number;
+  currentExpandedBarIndex: number;
+  onSetDisplayMode: (mode: FormDisplayMode) => void;
+  onSetBarsPerPage: (bars: number) => void;
+  onUpdateExpandedBar: (index: number, chord: string) => void;
+  onInsertExpandedBar: (index: number) => void;
+  onRemoveExpandedBar: (index: number) => void;
+  onUpdateCompressedSectionLabel: (sectionId: string, label: string) => void;
+  onUpdateCompressedSectionBars: (sectionId: string, bars: string[]) => void;
+  onUnlinkCompressedSectionRepeat: (sectionId: string, repeatIndex: number) => void;
+  onDownload: (format: ExportFormat, condensed: boolean) => void;
 }
 
 export function FormSheetPanel({
-  bars,
-  patterns,
-  onChangeBar,
-  onInsertBar,
-  onRemoveBar,
+  expandedBars,
+  compressedSections,
+  expandedToCompressedMap,
+  displayMode,
+  barsPerPage,
+  currentExpandedBarIndex,
+  onSetDisplayMode,
+  onSetBarsPerPage,
+  onUpdateExpandedBar,
+  onInsertExpandedBar,
+  onRemoveExpandedBar,
+  onUpdateCompressedSectionLabel,
+  onUpdateCompressedSectionBars,
+  onUnlinkCompressedSectionRepeat,
   onDownload,
 }: FormSheetPanelProps) {
-  const displayedBars = bars.length > 0 ? bars : ["N.C."];
+  const [page, setPage] = useState(0);
+  const [condensedExport, setCondensedExport] = useState(false);
+
+  const activeSectionId = expandedToCompressedMap[currentExpandedBarIndex]?.sectionId;
+
+  const compressedPages = useMemo(() => {
+    if (compressedSections.length === 0) {
+      return [[] as CompressedSection[]];
+    }
+
+    const pages: CompressedSection[][] = [];
+    let currentPage: CompressedSection[] = [];
+    let currentBudget = 0;
+
+    compressedSections.forEach((section) => {
+      const sectionEquivalentBars = section.bars.length * section.repeatCount;
+      if (currentPage.length > 0 && currentBudget + sectionEquivalentBars > barsPerPage) {
+        pages.push(currentPage);
+        currentPage = [];
+        currentBudget = 0;
+      }
+
+      currentPage.push(section);
+      currentBudget += sectionEquivalentBars;
+    });
+
+    if (currentPage.length > 0) {
+      pages.push(currentPage);
+    }
+
+    return pages;
+  }, [barsPerPage, compressedSections]);
+
+  const expandedPages = useMemo(() => {
+    if (expandedBars.length === 0) {
+      return [[] as string[]];
+    }
+
+    const pages: string[][] = [];
+    for (let i = 0; i < expandedBars.length; i += barsPerPage) {
+      pages.push(expandedBars.slice(i, i + barsPerPage));
+    }
+
+    return pages;
+  }, [barsPerPage, expandedBars]);
+
+  const totalPages = displayMode === "compressed" ? compressedPages.length : expandedPages.length;
+  const safePage = Math.max(0, Math.min(page, totalPages - 1));
+  const currentCompressed = compressedPages[safePage] ?? [];
+  const currentExpanded = expandedPages[safePage] ?? [];
+  const pageStartBar = safePage * barsPerPage;
 
   return (
     <Panel
       title="Form Sheet"
-      subtitle="Editable iReal-style chart generated from learned progression"
+      subtitle="32-bar default performance chart with compressed repeat display and full-form export"
     >
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="text-xs text-slate-300">
+          Display
+          <select
+            value={displayMode}
+            onChange={(event) => {
+              onSetDisplayMode(event.target.value as FormDisplayMode);
+              setPage(0);
+            }}
+            className="ml-2 rounded border border-slate-700 bg-slate-900 px-2 py-1"
+          >
+            <option value="compressed">Compressed</option>
+            <option value="expanded">Expanded</option>
+          </select>
+        </label>
+
+        <label className="text-xs text-slate-300">
+          Bars / Page
+          <input
+            type="number"
+            min={8}
+            max={64}
+            value={barsPerPage}
+            onChange={(event) => {
+              onSetBarsPerPage(Number(event.target.value) || 32);
+              setPage(0);
+            }}
+            className="ml-2 w-16 rounded border border-slate-700 bg-slate-900 px-2 py-1"
+          />
+        </label>
+
+        <label className="flex items-center gap-1 text-xs text-slate-300">
+          <input
+            type="checkbox"
+            checked={condensedExport}
+            onChange={(event) => setCondensedExport(event.target.checked)}
+          />
+          Print condensed with repeat signs
+        </label>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <ExportButton label="TXT" onClick={() => onDownload("txt", condensedExport)} />
+        <ExportButton label="PDF" onClick={() => onDownload("pdf", condensedExport)} />
+        <ExportButton label="iRealPro" onClick={() => onDownload("ireal", condensedExport)} />
+        <ExportButton label="MusicXML" onClick={() => onDownload("musicxml", condensedExport)} />
+      </div>
+
+      <div className="mt-3 flex items-center gap-2 text-xs text-slate-300">
         <button
           type="button"
-          onClick={onDownload}
-          className="rounded-md bg-indigo-500 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-400"
+          onClick={() => setPage((value) => Math.max(0, value - 1))}
+          disabled={safePage <= 0}
+          className="rounded border border-slate-700 px-2 py-1 disabled:opacity-40"
         >
-          Download Chord Sheet
+          Prev Page
+        </button>
+        <span>
+          Page {safePage + 1} / {Math.max(totalPages, 1)}
+        </span>
+        <button
+          type="button"
+          onClick={() => setPage((value) => Math.min(totalPages - 1, value + 1))}
+          disabled={safePage >= totalPages - 1}
+          className="rounded border border-slate-700 px-2 py-1 disabled:opacity-40"
+        >
+          Next Page
         </button>
       </div>
 
-      <div className="mt-4 rounded-lg border border-slate-800 bg-[repeating-linear-gradient(180deg,#020617_0px,#020617_20px,#0b1220_20px,#0b1220_21px)] p-3">
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          {displayedBars.map((bar, index) => {
-            const section = sectionLabelForBar(index, displayedBars.length, patterns);
-
-            return (
-              <div key={`bar-${index}`} className="rounded-md border border-slate-700 bg-slate-900/80 p-2">
-                <div className="mb-1 flex items-center justify-between">
-                  <span className="text-[10px] uppercase tracking-wide text-slate-400">
-                    {section ? `${section} · ` : ""}Bar {index + 1}
-                  </span>
-                  <div className="flex gap-1">
-                    <button
-                      type="button"
-                      onClick={() => onInsertBar(index + 1)}
-                      className="h-5 w-5 rounded border border-slate-600 text-xs text-slate-200 hover:border-slate-400"
-                      title="Add bar"
-                    >
-                      +
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onRemoveBar(index)}
-                      className="h-5 w-5 rounded border border-slate-600 text-xs text-slate-200 hover:border-slate-400"
-                      title="Remove bar"
-                    >
-                      -
-                    </button>
+      {displayMode === "compressed" ? (
+        <div className="mt-4 space-y-3">
+          {currentCompressed.length === 0 ? (
+            <p className="text-sm text-slate-400">No compressed form available yet.</p>
+          ) : (
+            currentCompressed.map((section) => {
+              const isActive = section.id === activeSectionId;
+              return (
+                <div
+                  key={section.id}
+                  className={`rounded-lg border p-3 ${
+                    isActive
+                      ? "border-cyan-400 bg-cyan-500/10"
+                      : "border-slate-800 bg-slate-950/80"
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="text-xs text-slate-300">
+                      Section
+                      <input
+                        value={section.label}
+                        onChange={(event) =>
+                          onUpdateCompressedSectionLabel(section.id, event.target.value)
+                        }
+                        className="ml-2 w-12 rounded border border-slate-700 bg-slate-900 px-2 py-1"
+                      />
+                    </label>
+                    <span className="text-xs text-slate-400">
+                      {section.bars.length} bars x{section.repeatCount}
+                    </span>
                   </div>
+
+                  <label className="mt-2 block text-xs text-slate-300">
+                    Bars (| separated)
+                    <input
+                      value={section.bars.join(" | ")}
+                      onChange={(event) =>
+                        onUpdateCompressedSectionBars(
+                          section.id,
+                          event.target.value
+                            .split("|")
+                            .map((item) => item.trim())
+                            .filter((item) => item.length > 0)
+                        )
+                      }
+                      className="mt-1 w-full rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm"
+                    />
+                  </label>
+
+                  {section.repeatCount > 1 ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {Array.from({ length: section.repeatCount }).map((_, repeatIndex) => (
+                        <button
+                          key={`${section.id}-unlink-${repeatIndex}`}
+                          type="button"
+                          onClick={() => onUnlinkCompressedSectionRepeat(section.id, repeatIndex)}
+                          className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300"
+                        >
+                          Unlink repeat {repeatIndex + 1}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
-
-                <input
-                  value={bar}
-                  onChange={(event) => onChangeBar(index, event.target.value)}
-                  className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm font-medium text-slate-100"
-                  aria-label={`Chord for bar ${index + 1}`}
-                />
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
-      </div>
+      ) : (
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {currentExpanded.length === 0 ? (
+            <p className="text-sm text-slate-400">No expanded form available yet.</p>
+          ) : (
+            currentExpanded.map((bar, index) => {
+              const absoluteIndex = pageStartBar + index;
+              const active = absoluteIndex === currentExpandedBarIndex;
 
-      {patterns.length > 0 ? (
-        <div className="mt-3 text-xs text-slate-400">
-          {patterns.slice(0, 4).map((pattern) => (
-            <p key={pattern.label}>
-              Section {pattern.label}: {pattern.signature.replace(/-/g, " -> ")} ({pattern.occurrences}x)
-            </p>
-          ))}
+              return (
+                <div
+                  key={`expanded-${absoluteIndex}`}
+                  className={`rounded border p-2 ${
+                    active
+                      ? "border-cyan-400 bg-cyan-500/10"
+                      : "border-slate-700 bg-slate-950/80"
+                  }`}
+                >
+                  <div className="mb-1 flex items-center justify-between text-[10px] uppercase tracking-wide text-slate-400">
+                    <span>Bar {absoluteIndex + 1}</span>
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => onInsertExpandedBar(absoluteIndex + 1)}
+                        className="h-5 w-5 rounded border border-slate-600 text-xs"
+                      >
+                        +
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onRemoveExpandedBar(absoluteIndex)}
+                        className="h-5 w-5 rounded border border-slate-600 text-xs"
+                      >
+                        -
+                      </button>
+                    </div>
+                  </div>
+
+                  <input
+                    value={bar}
+                    onChange={(event) => onUpdateExpandedBar(absoluteIndex, event.target.value)}
+                    className="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm"
+                  />
+                </div>
+              );
+            })
+          )}
         </div>
-      ) : null}
+      )}
     </Panel>
   );
 }
 
-function sectionLabelForBar(index: number, totalBars: number, patterns: TheoryFormPattern[]): string {
-  if (patterns.length > 0) {
-    const sorted = [...patterns].sort((a, b) => b.length - a.length);
-    for (const pattern of sorted) {
-      const startIndex = index - (index % pattern.length);
-      if (startIndex + pattern.length <= totalBars) {
-        return pattern.label;
-      }
-    }
-  }
-
-  const defaultSectionIndex = Math.floor(index / 8);
-  return String.fromCharCode(65 + defaultSectionIndex);
+function ExportButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"
+    >
+      {label}
+    </button>
+  );
 }

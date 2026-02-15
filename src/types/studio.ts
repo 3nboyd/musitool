@@ -51,13 +51,35 @@ export interface TheoryFormPattern {
   occurrences: number;
 }
 
+export interface CompressedSection {
+  id: string;
+  label: string;
+  bars: string[];
+  repeatCount: number;
+  altEnding?: string;
+}
+
+export interface ExpandedToCompressedMapItem {
+  expandedBarIndex: number;
+  sectionId: string;
+  localBar: number;
+}
+
+export type FormDisplayMode = "compressed" | "expanded";
+
 export interface TheoryMemory {
   stableKey: string;
   stableScale: string;
   keyConfidence: number;
   lastKeyChangeAt: number;
   progression: string[];
+  expandedBars: string[];
   formSheetBars: string[];
+  compressedSections: CompressedSection[];
+  expandedToCompressedMap: ExpandedToCompressedMapItem[];
+  barsPerPage: number;
+  displayMode: FormDisplayMode;
+  currentExpandedBarIndex: number;
   chordTimeline: TheoryChordTimelineEvent[];
   formPatterns: TheoryFormPattern[];
   currentFormLabel: string | null;

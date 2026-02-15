@@ -14,6 +14,7 @@ import { useMidi } from "@/hooks/useMidi";
 import { useTheoryWorker } from "@/hooks/useTheoryWorker";
 import { SessionRecord, deleteSession, listSessions, loadSession, saveSession } from "@/lib/storage/db";
 import { quantizeMidiEvents } from "@/lib/midi/quantize";
+import { exportChart } from "@/lib/theory/chart-export";
 import { useStudioStore } from "@/store/useStudioStore";
 import { SessionState, Subdivision } from "@/types/studio";
 
@@ -41,6 +42,11 @@ export function StudioApp() {
   const updateFormSheetBar = useStudioStore((state) => state.updateFormSheetBar);
   const insertFormSheetBar = useStudioStore((state) => state.insertFormSheetBar);
   const removeFormSheetBar = useStudioStore((state) => state.removeFormSheetBar);
+  const updateCompressedSectionLabel = useStudioStore((state) => state.updateCompressedSectionLabel);
+  const updateCompressedSectionBars = useStudioStore((state) => state.updateCompressedSectionBars);
+  const unlinkCompressedSectionRepeat = useStudioStore((state) => state.unlinkCompressedSectionRepeat);
+  const setFormDisplayMode = useStudioStore((state) => state.setFormDisplayMode);
+  const setBarsPerPage = useStudioStore((state) => state.setBarsPerPage);
 
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [saving, setSaving] = useState(false);
@@ -252,39 +258,32 @@ export function StudioApp() {
     setNotice(`Metronome synced to live tempo (${Math.round(liveTempo)} BPM).`);
   }, [liveTempo, updateMetronome]);
 
-  const downloadChordSheet = useCallback(() => {
-    const bars = theoryMemory.formSheetBars;
-    if (bars.length === 0) {
-      setNotice("No learned form bars yet to export.");
-      return;
-    }
+  const downloadChartSheet = useCallback(
+    async (format: "txt" | "pdf" | "ireal" | "musicxml", condensed: boolean) => {
+      if (theoryMemory.expandedBars.length === 0) {
+        setNotice("No learned form bars yet to export.");
+        return;
+      }
 
-    const lines: string[] = [];
-    lines.push(`${sessionName} - Chord Sheet`);
-    lines.push(`Key: ${theoryContext.keyGuess} ${theoryContext.scaleGuess}`);
-    lines.push("");
-
-    for (let i = 0; i < bars.length; i += 4) {
-      const row = bars.slice(i, i + 4).map((bar) => bar || "N.C.");
-      lines.push(`| ${row.join(" | ")} |`);
-    }
-
-    if (theoryMemory.formPatterns.length > 0) {
-      lines.push("");
-      lines.push("Detected Form Sections:");
-      theoryMemory.formPatterns.slice(0, 6).forEach((pattern) => {
-        lines.push(`${pattern.label}: ${pattern.signature} (${pattern.occurrences}x)`);
-      });
-    }
-
-    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${sessionName.replace(/\s+/g, "-").toLowerCase()}-chord-sheet.txt`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-  }, [sessionName, theoryContext.keyGuess, theoryContext.scaleGuess, theoryMemory.formPatterns, theoryMemory.formSheetBars]);
+      await exportChart(
+        {
+          name: sessionName,
+          keyLabel: `${theoryContext.keyGuess} ${theoryContext.scaleGuess}`,
+          expandedBars: theoryMemory.expandedBars,
+          compressedSections: theoryMemory.compressedSections,
+          condensed,
+        },
+        format
+      );
+    },
+    [
+      sessionName,
+      theoryContext.keyGuess,
+      theoryContext.scaleGuess,
+      theoryMemory.compressedSections,
+      theoryMemory.expandedBars,
+    ]
+  );
 
   const noticeText = useMemo(() => notice, [notice]);
   const tempoDelta = useMemo(() => {
@@ -347,12 +346,23 @@ export function StudioApp() {
           <div className="space-y-4">
             <TheoryPanel context={theoryContext} recommendations={recommendations} memory={theoryMemory} />
             <FormSheetPanel
-              bars={theoryMemory.formSheetBars}
-              patterns={theoryMemory.formPatterns}
-              onChangeBar={updateFormSheetBar}
-              onInsertBar={insertFormSheetBar}
-              onRemoveBar={removeFormSheetBar}
-              onDownload={downloadChordSheet}
+              expandedBars={theoryMemory.expandedBars}
+              compressedSections={theoryMemory.compressedSections}
+              expandedToCompressedMap={theoryMemory.expandedToCompressedMap}
+              displayMode={theoryMemory.displayMode}
+              barsPerPage={theoryMemory.barsPerPage}
+              currentExpandedBarIndex={theoryMemory.currentExpandedBarIndex}
+              onSetDisplayMode={setFormDisplayMode}
+              onSetBarsPerPage={setBarsPerPage}
+              onUpdateExpandedBar={updateFormSheetBar}
+              onInsertExpandedBar={insertFormSheetBar}
+              onRemoveExpandedBar={removeFormSheetBar}
+              onUpdateCompressedSectionLabel={updateCompressedSectionLabel}
+              onUpdateCompressedSectionBars={updateCompressedSectionBars}
+              onUnlinkCompressedSectionRepeat={unlinkCompressedSectionRepeat}
+              onDownload={(format, condensed) => {
+                void downloadChartSheet(format, condensed);
+              }}
             />
             <MidiPanel
               supported={midi.supported}

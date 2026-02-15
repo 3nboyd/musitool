@@ -2,6 +2,11 @@ import { Chord, Interval, Note, Scale } from "@tonaljs/tonal";
 import { stripOctave } from "@/lib/audio/note";
 import { createDefaultTheoryContext, createDefaultTheoryMemory } from "@/lib/theory/defaults";
 import {
+  compressExpandedBars,
+  expandCompressedSections,
+  mergeExpandedBars,
+} from "@/lib/theory/form-compression";
+import {
   TheoryContext,
   TheoryFormPattern,
   TheoryMemory,
@@ -78,6 +83,10 @@ export function analyzeTheoryState(input: TheoryAnalysisInput): {
   const progression = progressionUpdate.progression.slice(-64);
   const formPatterns = buildFormPatterns(progression);
   const currentFormLabel = detectCurrentFormLabel(progression, formPatterns);
+  const expandedBars = mergeExpandedBars(memory.expandedBars, progression);
+  const compressedSections = compressExpandedBars(expandedBars);
+  const expandedForm = expandCompressedSections(compressedSections);
+  const currentExpandedBarIndex = Math.max(0, expandedBars.length - 1);
 
   const currentNote = input.noteHistory.length > 0 ? input.noteHistory[input.noteHistory.length - 1] : null;
 
@@ -127,7 +136,13 @@ export function analyzeTheoryState(input: TheoryAnalysisInput): {
     keyConfidence: stable.confidence,
     lastKeyChangeAt: stable.lastKeyChangeAt,
     progression,
+    expandedBars: expandedForm.expandedBars,
     formSheetBars,
+    compressedSections,
+    expandedToCompressedMap: expandedForm.expandedToCompressedMap,
+    barsPerPage: memory.barsPerPage > 0 ? memory.barsPerPage : 32,
+    displayMode: memory.displayMode ?? "compressed",
+    currentExpandedBarIndex,
     chordTimeline: progressionUpdate.chordTimeline.slice(-64),
     formPatterns,
     currentFormLabel,
@@ -205,7 +220,13 @@ function normalizeMemory(memory: TheoryMemory | null | undefined): TheoryMemory 
     ...fallback,
     ...memory,
     progression: memory.progression ?? [],
+    expandedBars: memory.expandedBars ?? memory.formSheetBars ?? [],
     formSheetBars: memory.formSheetBars ?? [],
+    compressedSections: memory.compressedSections ?? compressExpandedBars(memory.expandedBars ?? []),
+    expandedToCompressedMap: memory.expandedToCompressedMap ?? [],
+    barsPerPage: memory.barsPerPage ?? 32,
+    displayMode: memory.displayMode ?? "compressed",
+    currentExpandedBarIndex: memory.currentExpandedBarIndex ?? 0,
     chordTimeline: memory.chordTimeline ?? [],
     formPatterns: memory.formPatterns ?? [],
     cachedRecommendations: memory.cachedRecommendations ?? [],

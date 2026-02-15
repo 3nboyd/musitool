@@ -2,6 +2,8 @@ import { create } from "zustand";
 import {
   AnalysisSource,
   AudioFrameFeature,
+  CompressedSection,
+  FormDisplayMode,
   MetronomePattern,
   MidiDeviceInfo,
   MidiEvent,
@@ -13,6 +15,12 @@ import {
 } from "@/types/studio";
 import { normalizeAccents } from "@/lib/metronome/math";
 import { createDefaultTheoryContext, createDefaultTheoryMemory } from "@/lib/theory/defaults";
+import {
+  compressExpandedBars,
+  expandCompressedSections,
+  mergeExpandedBars,
+  unlinkRepeatInstance,
+} from "@/lib/theory/form-compression";
 
 const NOTE_HISTORY_LIMIT = 64;
 const FRAME_HISTORY_LIMIT = 120;
@@ -73,9 +81,47 @@ interface StudioState {
   updateFormSheetBar: (index: number, chord: string) => void;
   insertFormSheetBar: (index: number) => void;
   removeFormSheetBar: (index: number) => void;
+  updateCompressedSectionLabel: (sectionId: string, label: string) => void;
+  updateCompressedSectionBars: (sectionId: string, bars: string[]) => void;
+  unlinkCompressedSectionRepeat: (sectionId: string, repeatIndex: number) => void;
+  setFormDisplayMode: (mode: FormDisplayMode) => void;
+  setBarsPerPage: (bars: number) => void;
   setSessionName: (name: string) => void;
   applySession: (session: SessionState) => void;
   createSessionSnapshot: () => SessionState;
+}
+
+function buildFormStateFromExpanded(expandedBars: string[], previous: TheoryMemory): TheoryMemory {
+  const compressedSections = compressExpandedBars(expandedBars);
+  const expanded = expandCompressedSections(compressedSections);
+
+  return {
+    ...previous,
+    expandedBars: expanded.expandedBars,
+    formSheetBars: expanded.expandedBars,
+    compressedSections,
+    expandedToCompressedMap: expanded.expandedToCompressedMap,
+    currentExpandedBarIndex: Math.max(0, expanded.expandedBars.length - 1),
+  };
+}
+
+function buildFormStateFromCompressed(
+  compressedSections: CompressedSection[],
+  previous: TheoryMemory
+): TheoryMemory {
+  const expanded = expandCompressedSections(compressedSections);
+
+  return {
+    ...previous,
+    expandedBars: expanded.expandedBars,
+    formSheetBars: expanded.expandedBars,
+    compressedSections,
+    expandedToCompressedMap: expanded.expandedToCompressedMap,
+    currentExpandedBarIndex: Math.min(
+      previous.currentExpandedBarIndex,
+      Math.max(0, expanded.expandedBars.length - 1)
+    ),
+  };
 }
 
 function createSessionSnapshot(state: StudioState): SessionState {
@@ -141,10 +187,24 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       noteHistory: [...state.noteHistory, note].slice(-NOTE_HISTORY_LIMIT),
     })),
   setTheory: (context, recommendations, memory) =>
-    set({
-      theoryContext: context,
-      recommendations,
-      theoryMemory: memory,
+    set((state) => {
+      const mergedExpandedBars = mergeExpandedBars(
+        state.theoryMemory.expandedBars,
+        memory.expandedBars.length > 0 ? memory.expandedBars : memory.formSheetBars
+      );
+
+      const mergedMemory = buildFormStateFromExpanded(mergedExpandedBars, {
+        ...state.theoryMemory,
+        ...memory,
+        barsPerPage: state.theoryMemory.barsPerPage || memory.barsPerPage || 32,
+        displayMode: state.theoryMemory.displayMode || memory.displayMode || "compressed",
+      });
+
+      return {
+        theoryContext: context,
+        recommendations,
+        theoryMemory: mergedMemory,
+      };
     }),
   updateMetronome: (update) =>
     set((state) => {
@@ -192,7 +252,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   clearRecordedEvents: () => set({ recordedEvents: [] }),
   updateFormSheetBar: (index, chord) =>
     set((state) => {
-      const bars = [...state.theoryMemory.formSheetBars];
+      const bars = [...state.theoryMemory.expandedBars];
       if (index < 0) {
         return {};
       }
@@ -200,50 +260,109 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         bars.push("N.C.");
       }
       bars[index] = chord || "N.C.";
+      const next = buildFormStateFromExpanded(bars, state.theoryMemory);
       return {
-        theoryMemory: {
-          ...state.theoryMemory,
-          formSheetBars: bars,
-        },
+        theoryMemory: next,
       };
     }),
   insertFormSheetBar: (index) =>
     set((state) => {
-      const bars = [...state.theoryMemory.formSheetBars];
+      const bars = [...state.theoryMemory.expandedBars];
       const target = Math.max(0, Math.min(index, bars.length));
       bars.splice(target, 0, bars[target - 1] ?? "N.C.");
+      const next = buildFormStateFromExpanded(bars, state.theoryMemory);
       return {
-        theoryMemory: {
-          ...state.theoryMemory,
-          formSheetBars: bars,
-        },
+        theoryMemory: next,
       };
     }),
   removeFormSheetBar: (index) =>
     set((state) => {
-      const bars = [...state.theoryMemory.formSheetBars];
+      const bars = [...state.theoryMemory.expandedBars];
       if (bars.length <= 1 || index < 0 || index >= bars.length) {
         return {};
       }
       bars.splice(index, 1);
+      const next = buildFormStateFromExpanded(bars, state.theoryMemory);
+      return {
+        theoryMemory: next,
+      };
+    }),
+  updateCompressedSectionLabel: (sectionId, label) =>
+    set((state) => {
+      const sections = state.theoryMemory.compressedSections.map((section) =>
+        section.id === sectionId ? { ...section, label: label || section.label } : section
+      );
       return {
         theoryMemory: {
           ...state.theoryMemory,
-          formSheetBars: bars,
+          compressedSections: sections,
         },
       };
     }),
+  updateCompressedSectionBars: (sectionId, bars) =>
+    set((state) => {
+      const normalizedBars = bars
+        .map((bar) => bar.trim())
+        .filter((bar) => bar.length > 0);
+
+      if (normalizedBars.length === 0) {
+        return {};
+      }
+
+      const sections = state.theoryMemory.compressedSections.map((section) =>
+        section.id === sectionId ? { ...section, bars: normalizedBars } : section
+      );
+      const next = buildFormStateFromCompressed(sections, state.theoryMemory);
+      return {
+        theoryMemory: next,
+      };
+    }),
+  unlinkCompressedSectionRepeat: (sectionId, repeatIndex) =>
+    set((state) => {
+      const sections = unlinkRepeatInstance(
+        state.theoryMemory.compressedSections,
+        sectionId,
+        repeatIndex
+      );
+      const next = buildFormStateFromCompressed(sections, state.theoryMemory);
+      return {
+        theoryMemory: next,
+      };
+    }),
+  setFormDisplayMode: (mode) =>
+    set((state) => ({
+      theoryMemory: {
+        ...state.theoryMemory,
+        displayMode: mode,
+      },
+    })),
+  setBarsPerPage: (bars) =>
+    set((state) => ({
+      theoryMemory: {
+        ...state.theoryMemory,
+        barsPerPage: Math.max(8, Math.min(64, Math.round(bars) || 32)),
+      },
+    })),
   setSessionName: (name) => set({ sessionName: name }),
   applySession: (session) =>
-    set({
-      sessionName: session.name,
-      analysisSettings: session.analysisSettings,
-      metronome: session.metronome,
-      midiMap: session.midiMap,
-      recordedEvents: session.recordedEvents,
-      noteHistory: session.noteHistory,
-      theoryContext: session.lastTheoryContext,
-      theoryMemory: session.theoryMemory ?? createDefaultTheoryMemory(),
+    set(() => {
+      const incomingMemory = session.theoryMemory ?? createDefaultTheoryMemory();
+      const expandedBars = incomingMemory.expandedBars ?? incomingMemory.formSheetBars ?? [];
+      const normalizedMemory = buildFormStateFromExpanded(expandedBars, {
+        ...createDefaultTheoryMemory(),
+        ...incomingMemory,
+      });
+
+      return {
+        sessionName: session.name,
+        analysisSettings: session.analysisSettings,
+        metronome: session.metronome,
+        midiMap: session.midiMap,
+        recordedEvents: session.recordedEvents,
+        noteHistory: session.noteHistory,
+        theoryContext: session.lastTheoryContext,
+        theoryMemory: normalizedMemory,
+      };
     }),
   createSessionSnapshot: () => {
     return createSessionSnapshot(get());

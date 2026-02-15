@@ -1,4 +1,5 @@
 import { TheoryContext, TheoryMemory } from "@/types/studio";
+import { compressExpandedBars } from "@/lib/theory/form-compression";
 
 export function createDefaultTheoryContext(): TheoryContext {
   return {
@@ -14,13 +15,21 @@ export function createDefaultTheoryContext(): TheoryContext {
 }
 
 export function createDefaultTheoryMemory(): TheoryMemory {
+  const compressedSections = compressExpandedBars([]);
+
   return {
     stableKey: "C",
     stableScale: "major",
     keyConfidence: 0.5,
     lastKeyChangeAt: 0,
     progression: [],
+    expandedBars: [],
     formSheetBars: [],
+    compressedSections,
+    expandedToCompressedMap: [],
+    barsPerPage: 32,
+    displayMode: "compressed",
+    currentExpandedBarIndex: 0,
     chordTimeline: [],
     formPatterns: [],
     currentFormLabel: null,

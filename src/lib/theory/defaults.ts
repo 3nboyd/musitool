@@ -20,6 +20,7 @@ export function createDefaultTheoryMemory(): TheoryMemory {
     keyConfidence: 0.5,
     lastKeyChangeAt: 0,
     progression: [],
+    formSheetBars: [],
     chordTimeline: [],
     formPatterns: [],
     currentFormLabel: null,

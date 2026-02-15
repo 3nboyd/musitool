@@ -70,6 +70,9 @@ interface StudioState {
   recordMidiEvent: (event: MidiEvent) => void;
   setRecordedEvents: (events: RecordedMidiEvent[]) => void;
   clearRecordedEvents: () => void;
+  updateFormSheetBar: (index: number, chord: string) => void;
+  insertFormSheetBar: (index: number) => void;
+  removeFormSheetBar: (index: number) => void;
   setSessionName: (name: string) => void;
   applySession: (session: SessionState) => void;
   createSessionSnapshot: () => SessionState;
@@ -187,6 +190,49 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     }),
   setRecordedEvents: (events) => set({ recordedEvents: events }),
   clearRecordedEvents: () => set({ recordedEvents: [] }),
+  updateFormSheetBar: (index, chord) =>
+    set((state) => {
+      const bars = [...state.theoryMemory.formSheetBars];
+      if (index < 0) {
+        return {};
+      }
+      while (bars.length <= index) {
+        bars.push("N.C.");
+      }
+      bars[index] = chord || "N.C.";
+      return {
+        theoryMemory: {
+          ...state.theoryMemory,
+          formSheetBars: bars,
+        },
+      };
+    }),
+  insertFormSheetBar: (index) =>
+    set((state) => {
+      const bars = [...state.theoryMemory.formSheetBars];
+      const target = Math.max(0, Math.min(index, bars.length));
+      bars.splice(target, 0, bars[target - 1] ?? "N.C.");
+      return {
+        theoryMemory: {
+          ...state.theoryMemory,
+          formSheetBars: bars,
+        },
+      };
+    }),
+  removeFormSheetBar: (index) =>
+    set((state) => {
+      const bars = [...state.theoryMemory.formSheetBars];
+      if (bars.length <= 1 || index < 0 || index >= bars.length) {
+        return {};
+      }
+      bars.splice(index, 1);
+      return {
+        theoryMemory: {
+          ...state.theoryMemory,
+          formSheetBars: bars,
+        },
+      };
+    }),
   setSessionName: (name) => set({ sessionName: name }),
   applySession: (session) =>
     set({

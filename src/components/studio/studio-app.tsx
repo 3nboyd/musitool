@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnalysisPanel } from "@/components/studio/analysis-panel";
+import { FormSheetPanel } from "@/components/studio/form-sheet-panel";
 import { MidiPanel } from "@/components/studio/midi-panel";
 import { MetronomePanel } from "@/components/studio/metronome-panel";
 import { SessionPanel } from "@/components/studio/session-panel";
@@ -37,10 +38,16 @@ export function StudioApp() {
   const recordedEvents = useStudioStore((state) => state.recordedEvents);
   const setRecordedEvents = useStudioStore((state) => state.setRecordedEvents);
   const clearRecordedEvents = useStudioStore((state) => state.clearRecordedEvents);
+  const updateFormSheetBar = useStudioStore((state) => state.updateFormSheetBar);
+  const insertFormSheetBar = useStudioStore((state) => state.insertFormSheetBar);
+  const removeFormSheetBar = useStudioStore((state) => state.removeFormSheetBar);
 
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [liveTempo, setLiveTempo] = useState<number | null>(null);
+  const [autoSyncTempo, setAutoSyncTempo] = useState(false);
+  const lastAutoSyncAtRef = useRef(0);
 
   const { requestTheory } = useTheoryWorker({
     onResponse: ({ context, recommendations: nextRecommendations, memory }) => {
@@ -90,6 +97,33 @@ export function StudioApp() {
       queueTheoryRequest(noteHistory, metronomePattern.bpm);
     }
   }, [metronomePattern.bpm, noteHistory, queueTheoryRequest, source]);
+
+  useEffect(() => {
+    const detectedBpm = frame?.bpm;
+    if (detectedBpm === null || detectedBpm === undefined) {
+      return;
+    }
+
+    setLiveTempo((previous) => {
+      if (previous === null) {
+        return detectedBpm;
+      }
+      return previous * 0.7 + detectedBpm * 0.3;
+    });
+  }, [frame?.bpm]);
+
+  useEffect(() => {
+    if (!autoSyncTempo || liveTempo === null) {
+      return;
+    }
+
+    const now = Date.now();
+    const nextBpm = Math.round(liveTempo);
+    if (Math.abs(nextBpm - metronomePattern.bpm) >= 1 && now - lastAutoSyncAtRef.current > 1500) {
+      updateMetronome({ bpm: nextBpm });
+      lastAutoSyncAtRef.current = now;
+    }
+  }, [autoSyncTempo, liveTempo, metronomePattern.bpm, updateMetronome]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -208,7 +242,57 @@ export function StudioApp() {
     [metronomePattern.bpm, recordedEvents, setRecordedEvents]
   );
 
+  const syncToLiveTempo = useCallback(() => {
+    if (liveTempo === null) {
+      setNotice("Live tempo is not detected yet.");
+      return;
+    }
+
+    updateMetronome({ bpm: Math.round(liveTempo) });
+    setNotice(`Metronome synced to live tempo (${Math.round(liveTempo)} BPM).`);
+  }, [liveTempo, updateMetronome]);
+
+  const downloadChordSheet = useCallback(() => {
+    const bars = theoryMemory.formSheetBars;
+    if (bars.length === 0) {
+      setNotice("No learned form bars yet to export.");
+      return;
+    }
+
+    const lines: string[] = [];
+    lines.push(`${sessionName} - Chord Sheet`);
+    lines.push(`Key: ${theoryContext.keyGuess} ${theoryContext.scaleGuess}`);
+    lines.push("");
+
+    for (let i = 0; i < bars.length; i += 4) {
+      const row = bars.slice(i, i + 4).map((bar) => bar || "N.C.");
+      lines.push(`| ${row.join(" | ")} |`);
+    }
+
+    if (theoryMemory.formPatterns.length > 0) {
+      lines.push("");
+      lines.push("Detected Form Sections:");
+      theoryMemory.formPatterns.slice(0, 6).forEach((pattern) => {
+        lines.push(`${pattern.label}: ${pattern.signature} (${pattern.occurrences}x)`);
+      });
+    }
+
+    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${sessionName.replace(/\s+/g, "-").toLowerCase()}-chord-sheet.txt`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }, [sessionName, theoryContext.keyGuess, theoryContext.scaleGuess, theoryMemory.formPatterns, theoryMemory.formSheetBars]);
+
   const noticeText = useMemo(() => notice, [notice]);
+  const tempoDelta = useMemo(() => {
+    if (liveTempo === null) {
+      return null;
+    }
+    return Math.abs(metronomePattern.bpm - liveTempo);
+  }, [liveTempo, metronomePattern.bpm]);
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_15%_20%,rgba(56,189,248,0.12),transparent_45%),radial-gradient(circle_at_85%_10%,rgba(99,102,241,0.14),transparent_40%),linear-gradient(180deg,#020617_0%,#020617_45%,#020617_100%)] px-4 py-6 text-slate-100 md:px-8">
@@ -249,14 +333,27 @@ export function StudioApp() {
               pattern={metronomePattern}
               running={metronome.isRunning}
               currentBeat={metronome.currentBeat}
+              liveTempo={liveTempo}
+              tempoDelta={tempoDelta}
+              autoSyncTempo={autoSyncTempo}
               onUpdate={updateMetronome}
               onToggle={metronome.toggle}
               onTapTempo={metronome.tapTempo}
+              onSyncToLive={syncToLiveTempo}
+              onToggleAutoSyncTempo={() => setAutoSyncTempo((value) => !value)}
             />
           </div>
 
           <div className="space-y-4">
             <TheoryPanel context={theoryContext} recommendations={recommendations} memory={theoryMemory} />
+            <FormSheetPanel
+              bars={theoryMemory.formSheetBars}
+              patterns={theoryMemory.formPatterns}
+              onChangeBar={updateFormSheetBar}
+              onInsertBar={insertFormSheetBar}
+              onRemoveBar={removeFormSheetBar}
+              onDownload={downloadChordSheet}
+            />
             <MidiPanel
               supported={midi.supported}
               connected={midi.connected}

@@ -118,6 +118,8 @@ export function analyzeTheoryState(input: TheoryAnalysisInput): {
     ? memory.cachedRecommendations
     : freshRecommendations;
 
+  const formSheetBars = mergeFormSheetBars(memory.formSheetBars, progression);
+
   const nextMemory: TheoryMemory = {
     ...memory,
     stableKey: stable.keyGuess,
@@ -125,6 +127,7 @@ export function analyzeTheoryState(input: TheoryAnalysisInput): {
     keyConfidence: stable.confidence,
     lastKeyChangeAt: stable.lastKeyChangeAt,
     progression,
+    formSheetBars,
     chordTimeline: progressionUpdate.chordTimeline.slice(-64),
     formPatterns,
     currentFormLabel,
@@ -202,6 +205,7 @@ function normalizeMemory(memory: TheoryMemory | null | undefined): TheoryMemory 
     ...fallback,
     ...memory,
     progression: memory.progression ?? [],
+    formSheetBars: memory.formSheetBars ?? [],
     chordTimeline: memory.chordTimeline ?? [],
     formPatterns: memory.formPatterns ?? [],
     cachedRecommendations: memory.cachedRecommendations ?? [],
@@ -669,6 +673,22 @@ function uniqueRecommendations(recommendations: TheoryRecommendation[]): TheoryR
   }
 
   return out;
+}
+
+function mergeFormSheetBars(existingBars: string[], progression: string[]): string[] {
+  if (progression.length === 0) {
+    return existingBars;
+  }
+
+  const bars = existingBars.length > 0 ? [...existingBars] : [...progression];
+  for (let i = 0; i < progression.length; i += 1) {
+    const current = bars[i];
+    if (!current || current.trim().length === 0) {
+      bars[i] = progression[i];
+    }
+  }
+
+  return bars;
 }
 
 function makeRecommendation(

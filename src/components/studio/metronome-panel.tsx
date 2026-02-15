@@ -5,9 +5,14 @@ interface MetronomePanelProps {
   pattern: MetronomePattern;
   running: boolean;
   currentBeat: number;
+  liveTempo: number | null;
+  tempoDelta: number | null;
+  autoSyncTempo: boolean;
   onUpdate: (update: Partial<MetronomePattern>) => void;
   onToggle: () => void;
   onTapTempo: () => void;
+  onSyncToLive: () => void;
+  onToggleAutoSyncTempo: () => void;
 }
 
 const SUBDIVISIONS: Subdivision[] = ["quarter", "eighth", "triplet", "sixteenth"];
@@ -16,9 +21,14 @@ export function MetronomePanel({
   pattern,
   running,
   currentBeat,
+  liveTempo,
+  tempoDelta,
+  autoSyncTempo,
   onUpdate,
   onToggle,
   onTapTempo,
+  onSyncToLive,
+  onToggleAutoSyncTempo,
 }: MetronomePanelProps) {
   const toggleAccent = (index: number) => {
     const accents = [...pattern.accents];
@@ -146,7 +156,57 @@ export function MetronomePanel({
         >
           Tap Tempo
         </button>
+        <button
+          type="button"
+          onClick={onSyncToLive}
+          disabled={liveTempo === null}
+          className="rounded-md border border-cyan-500/60 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Sync to Live Tempo
+        </button>
+        <button
+          type="button"
+          onClick={onToggleAutoSyncTempo}
+          className={`rounded-md border px-4 py-2 text-sm font-semibold ${
+            autoSyncTempo
+              ? "border-emerald-400 bg-emerald-500/20 text-emerald-200"
+              : "border-slate-700 bg-slate-900 text-slate-200"
+          }`}
+        >
+          {autoSyncTempo ? "Auto Tempo Follow: On" : "Auto Tempo Follow: Off"}
+        </button>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <Metric label="Live Tempo" value={liveTempo ? `${Math.round(liveTempo)} BPM` : "--"} />
+        <Metric label="Tempo Delta" value={tempoDelta !== null ? `${tempoDelta.toFixed(2)} BPM` : "--"} />
+        <Metric label="Timing Status" value={timingStatusLabel(tempoDelta)} />
       </div>
     </Panel>
+  );
+}
+
+function timingStatusLabel(delta: number | null): string {
+  if (delta === null) {
+    return "Waiting";
+  }
+
+  if (delta <= 0.8) {
+    return "In Time";
+  }
+
+  if (delta <= 2) {
+    return "Near";
+  }
+
+  return "Off Grid";
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-2">
+      <p className="text-[10px] uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="text-sm font-semibold text-slate-200">{value}</p>
+    </div>
   );
 }

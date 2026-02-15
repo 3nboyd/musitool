@@ -57,6 +57,7 @@ export interface TheoryMemory {
   keyConfidence: number;
   lastKeyChangeAt: number;
   progression: string[];
+  formSheetBars: string[];
   chordTimeline: TheoryChordTimelineEvent[];
   formPatterns: TheoryFormPattern[];
   currentFormLabel: string | null;

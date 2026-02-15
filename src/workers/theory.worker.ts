@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 
-import { buildTheoryContext, getTheoryRecommendations } from "@/lib/theory/recommendations";
+import { analyzeTheoryState } from "@/lib/theory/recommendations";
 import {
   TheoryRequestMessage,
   TheoryResponseMessage,
@@ -14,13 +14,19 @@ self.onmessage = (event: MessageEvent<TheoryRequestMessage>) => {
     return;
   }
 
-  const { noteHistory, bpm } = message.payload;
-  const context = buildTheoryContext(noteHistory, bpm);
-  const recommendations = getTheoryRecommendations(context, noteHistory);
+  const { noteHistory, bpm, previousContext, previousMemory, nowMs } = message.payload;
+  const { context, recommendations, memory } = analyzeTheoryState({
+    noteHistory,
+    bpm,
+    previousContext,
+    previousMemory,
+    nowMs,
+  });
 
   const response: TheoryResponseMessage = createTheoryResponseMessage({
     context,
     recommendations,
+    memory,
   });
 
   self.postMessage(response);

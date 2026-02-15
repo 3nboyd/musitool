@@ -1,15 +1,18 @@
 import { useMemo } from "react";
 import { Panel } from "@/components/ui/panel";
 import { buildCircleOfFifths } from "@/lib/theory/recommendations";
-import { TheoryContext, TheoryRecommendation } from "@/types/studio";
+import { TheoryContext, TheoryMemory, TheoryRecommendation } from "@/types/studio";
 
 interface TheoryPanelProps {
   context: TheoryContext;
   recommendations: TheoryRecommendation[];
+  memory: TheoryMemory;
 }
 
-export function TheoryPanel({ context, recommendations }: TheoryPanelProps) {
+export function TheoryPanel({ context, recommendations, memory }: TheoryPanelProps) {
   const fifths = useMemo(() => buildCircleOfFifths(context.keyGuess), [context.keyGuess]);
+  const progression = memory.progression.slice(-8);
+  const formPatterns = memory.formPatterns.slice(0, 4);
 
   return (
     <Panel title="Theory Assistant" subtitle="Scale and harmony guidance from detected notes">
@@ -17,6 +20,11 @@ export function TheoryPanel({ context, recommendations }: TheoryPanelProps) {
         <MetaBlock label="Current Note" value={context.note ?? "--"} />
         <MetaBlock label="Key / Scale" value={`${context.keyGuess} ${context.scaleGuess}`} />
         <MetaBlock label="Chord Hypothesis" value={context.chordGuess} />
+        <MetaBlock
+          label="Key Confidence"
+          value={context.keyConfidence ? `${Math.round(context.keyConfidence * 100)}%` : "--"}
+        />
+        <MetaBlock label="Form Section" value={context.formSectionLabel ?? "--"} />
         <MetaBlock label="Tempo Context" value={context.bpm ? `${context.bpm} BPM` : "--"} />
       </div>
 
@@ -32,6 +40,44 @@ export function TheoryPanel({ context, recommendations }: TheoryPanelProps) {
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950/80 p-3">
+        <p className="text-xs uppercase tracking-wide text-slate-500">Learned Progression (Recent)</p>
+        {progression.length === 0 ? (
+          <p className="mt-2 text-sm text-slate-400">No stable progression learned yet.</p>
+        ) : (
+          <div className="mt-2 flex flex-wrap gap-2 text-sm">
+            {progression.map((chord, index) => (
+              <span
+                key={`${chord}-${index}`}
+                className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200"
+              >
+                {chord}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950/80 p-3">
+        <p className="text-xs uppercase tracking-wide text-slate-500">Form Map</p>
+        {formPatterns.length === 0 ? (
+          <p className="mt-2 text-sm text-slate-400">
+            Repeat sections will appear here as the song cycles.
+          </p>
+        ) : (
+          <ul className="mt-2 space-y-1 text-sm text-slate-200">
+            {formPatterns.map((pattern) => (
+              <li
+                key={pattern.label}
+                className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1"
+              >
+                {pattern.label}: {pattern.signature.replace(/-/g, " -> ")} ({pattern.occurrences}x)
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="mt-4 space-y-2">

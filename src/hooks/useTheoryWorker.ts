@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import {
+  TheoryRequestPayload,
   TheoryRequestMessage,
   TheoryResponseMessage,
   createTheoryRequestMessage,
@@ -35,16 +36,13 @@ export function useTheoryWorker(options: UseTheoryWorkerOptions) {
     };
   }, []);
 
-  const requestTheory = useCallback((noteHistory: string[], bpm: number | null) => {
+  const requestTheory = useCallback((payload: TheoryRequestPayload) => {
     const worker = workerRef.current;
     if (!worker) {
       return;
     }
 
-    const message: TheoryRequestMessage = createTheoryRequestMessage({
-      noteHistory,
-      bpm,
-    });
+    const message: TheoryRequestMessage = createTheoryRequestMessage(payload);
 
     worker.postMessage(message);
   }, []);

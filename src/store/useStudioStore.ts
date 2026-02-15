@@ -8,9 +8,11 @@ import {
   RecordedMidiEvent,
   SessionState,
   TheoryContext,
+  TheoryMemory,
   TheoryRecommendation,
 } from "@/types/studio";
 import { normalizeAccents } from "@/lib/metronome/math";
+import { createDefaultTheoryContext, createDefaultTheoryMemory } from "@/lib/theory/defaults";
 
 const NOTE_HISTORY_LIMIT = 64;
 const FRAME_HISTORY_LIMIT = 120;
@@ -25,13 +27,8 @@ const defaultMetronome: MetronomePattern = {
   countInBars: 1,
 };
 
-const defaultTheoryContext: TheoryContext = {
-  note: null,
-  keyGuess: "C",
-  scaleGuess: "major",
-  chordGuess: "C",
-  bpm: null,
-};
+const defaultTheoryContext: TheoryContext = createDefaultTheoryContext();
+const defaultTheoryMemory: TheoryMemory = createDefaultTheoryMemory();
 
 interface StudioState {
   source: AnalysisSource;
@@ -39,6 +36,7 @@ interface StudioState {
   frameHistory: AudioFrameFeature[];
   noteHistory: string[];
   theoryContext: TheoryContext;
+  theoryMemory: TheoryMemory;
   recommendations: TheoryRecommendation[];
   metronome: MetronomePattern;
   metronomeRunning: boolean;
@@ -57,7 +55,11 @@ interface StudioState {
   setSource: (source: AnalysisSource) => void;
   setLatestFrame: (frame: AudioFrameFeature) => void;
   appendNote: (note: string) => void;
-  setTheory: (context: TheoryContext, recommendations: TheoryRecommendation[]) => void;
+  setTheory: (
+    context: TheoryContext,
+    recommendations: TheoryRecommendation[],
+    memory: TheoryMemory
+  ) => void;
   updateMetronome: (update: Partial<MetronomePattern>) => void;
   setMetronomeRunning: (running: boolean) => void;
   setMidiSupported: (supported: boolean) => void;
@@ -91,6 +93,7 @@ function createSessionSnapshot(state: StudioState): SessionState {
     recordedEvents: state.recordedEvents,
     noteHistory: state.noteHistory,
     lastTheoryContext: state.theoryContext,
+    theoryMemory: state.theoryMemory,
   };
 }
 
@@ -100,6 +103,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   frameHistory: [],
   noteHistory: [],
   theoryContext: defaultTheoryContext,
+  theoryMemory: defaultTheoryMemory,
   recommendations: [],
   metronome: defaultMetronome,
   metronomeRunning: false,
@@ -133,10 +137,11 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     set((state) => ({
       noteHistory: [...state.noteHistory, note].slice(-NOTE_HISTORY_LIMIT),
     })),
-  setTheory: (context, recommendations) =>
+  setTheory: (context, recommendations, memory) =>
     set({
       theoryContext: context,
       recommendations,
+      theoryMemory: memory,
     }),
   updateMetronome: (update) =>
     set((state) => {
@@ -192,6 +197,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       recordedEvents: session.recordedEvents,
       noteHistory: session.noteHistory,
       theoryContext: session.lastTheoryContext,
+      theoryMemory: session.theoryMemory ?? createDefaultTheoryMemory(),
     }),
   createSessionSnapshot: () => {
     return createSessionSnapshot(get());

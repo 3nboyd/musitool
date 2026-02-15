@@ -23,6 +23,9 @@ export interface TheoryContext {
   scaleGuess: string;
   chordGuess: string;
   bpm: number | null;
+  keyConfidence?: number;
+  formSectionLabel?: string | null;
+  progressionPreview?: string;
 }
 
 export type RecommendationType = "note" | "chord" | "scale";
@@ -33,6 +36,37 @@ export interface TheoryRecommendation {
   label: string;
   reason: string;
   confidence: number;
+}
+
+export interface TheoryChordTimelineEvent {
+  index: number;
+  chord: string;
+  confidence: number;
+}
+
+export interface TheoryFormPattern {
+  label: string;
+  signature: string;
+  length: number;
+  occurrences: number;
+}
+
+export interface TheoryMemory {
+  stableKey: string;
+  stableScale: string;
+  keyConfidence: number;
+  lastKeyChangeAt: number;
+  progression: string[];
+  chordTimeline: TheoryChordTimelineEvent[];
+  formPatterns: TheoryFormPattern[];
+  currentFormLabel: string | null;
+  lastProcessedNoteCount: number;
+  lastProcessedTail: string;
+  pendingChord: string | null;
+  pendingChordVotes: number;
+  lastRecommendationAt: number;
+  recommendationSignature: string;
+  cachedRecommendations: TheoryRecommendation[];
 }
 
 export interface MetronomePattern {
@@ -79,6 +113,7 @@ export interface SessionState {
   recordedEvents: RecordedMidiEvent[];
   noteHistory: string[];
   lastTheoryContext: TheoryContext;
+  theoryMemory?: TheoryMemory;
 }
 
 export type WorkerMessageType =

@@ -1,13 +1,17 @@
-import { TheoryContext, TheoryRecommendation, WorkerMessage } from "@/types/studio";
+import { TheoryContext, TheoryMemory, TheoryRecommendation, WorkerMessage } from "@/types/studio";
 
 export interface TheoryRequestPayload {
   noteHistory: string[];
   bpm: number | null;
+  previousContext: TheoryContext;
+  previousMemory: TheoryMemory;
+  nowMs: number;
 }
 
 export interface TheoryResponsePayload {
   context: TheoryContext;
   recommendations: TheoryRecommendation[];
+  memory: TheoryMemory;
 }
 
 export type TheoryRequestMessage = WorkerMessage<TheoryRequestPayload> & {

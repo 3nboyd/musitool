@@ -20,6 +20,7 @@ export function StudioApp() {
   const frame = useStudioStore((state) => state.latestFrame);
   const noteHistory = useStudioStore((state) => state.noteHistory);
   const theoryContext = useStudioStore((state) => state.theoryContext);
+  const theoryMemory = useStudioStore((state) => state.theoryMemory);
   const recommendations = useStudioStore((state) => state.recommendations);
   const metronomePattern = useStudioStore((state) => state.metronome);
   const updateMetronome = useStudioStore((state) => state.updateMetronome);
@@ -42,14 +43,28 @@ export function StudioApp() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const { requestTheory } = useTheoryWorker({
-    onResponse: ({ context, recommendations: nextRecommendations }) => {
-      setTheory(context, nextRecommendations);
+    onResponse: ({ context, recommendations: nextRecommendations, memory }) => {
+      setTheory(context, nextRecommendations, memory);
     },
   });
 
+  const queueTheoryRequest = useCallback(
+    (history: string[], bpm: number | null) => {
+      const snapshot = useStudioStore.getState();
+      requestTheory({
+        noteHistory: history,
+        bpm,
+        previousContext: snapshot.theoryContext,
+        previousMemory: snapshot.theoryMemory,
+        nowMs: Date.now(),
+      });
+    },
+    [requestTheory]
+  );
+
   const audio = useAudioAnalysis({
     onTheoryRequest: (history, bpm) => {
-      requestTheory(history, bpm);
+      queueTheoryRequest(history, bpm);
     },
   });
 
@@ -72,9 +87,9 @@ export function StudioApp() {
 
   useEffect(() => {
     if (source === "midi" && noteHistory.length > 0) {
-      requestTheory(noteHistory, metronomePattern.bpm);
+      queueTheoryRequest(noteHistory, metronomePattern.bpm);
     }
-  }, [metronomePattern.bpm, noteHistory, requestTheory, source]);
+  }, [metronomePattern.bpm, noteHistory, queueTheoryRequest, source]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -115,13 +130,13 @@ export function StudioApp() {
         }
 
         applySession(session);
-        requestTheory(session.noteHistory, session.lastTheoryContext.bpm);
+        queueTheoryRequest(session.noteHistory, session.lastTheoryContext.bpm);
         setNotice(`Loaded session \"${session.name}\".`);
       } catch {
         setNotice("Session load failed.");
       }
     },
-    [applySession, requestTheory]
+    [applySession, queueTheoryRequest]
   );
 
   const removeStoredSession = useCallback(
@@ -161,13 +176,13 @@ export function StudioApp() {
         }
 
         applySession(data);
-        requestTheory(data.noteHistory ?? [], data.lastTheoryContext?.bpm ?? metronomePattern.bpm);
+        queueTheoryRequest(data.noteHistory ?? [], data.lastTheoryContext?.bpm ?? metronomePattern.bpm);
         setNotice(`Imported session \"${data.name}\".`);
       } catch {
         setNotice("Import failed: invalid session JSON.");
       }
     },
-    [applySession, metronomePattern.bpm, requestTheory]
+    [applySession, metronomePattern.bpm, queueTheoryRequest]
   );
 
   const toggleMidiRecording = useCallback(() => {
@@ -241,7 +256,7 @@ export function StudioApp() {
           </div>
 
           <div className="space-y-4">
-            <TheoryPanel context={theoryContext} recommendations={recommendations} />
+            <TheoryPanel context={theoryContext} recommendations={recommendations} memory={theoryMemory} />
             <MidiPanel
               supported={midi.supported}
               connected={midi.connected}

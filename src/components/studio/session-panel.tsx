@@ -3,6 +3,7 @@ import { SessionRecord } from "@/lib/storage/db";
 import { formatTimeAgo } from "@/lib/format";
 
 interface SessionPanelProps {
+  className?: string;
   sessionName: string;
   sessions: SessionRecord[];
   saving: boolean;
@@ -16,6 +17,7 @@ interface SessionPanelProps {
 }
 
 export function SessionPanel({
+  className,
   sessionName,
   sessions,
   saving,
@@ -28,7 +30,11 @@ export function SessionPanel({
   onImportJson,
 }: SessionPanelProps) {
   return (
-    <Panel title="Session Manager" subtitle="Local save/load via IndexedDB and JSON import/export">
+    <Panel
+      title="Session Manager"
+      subtitle="Local save/load via IndexedDB and JSON import/export"
+      className={className}
+    >
       <label className="block text-sm text-slate-300">
         Session Name
         <input

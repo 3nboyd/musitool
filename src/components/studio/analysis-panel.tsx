@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Scale } from "@tonaljs/tonal";
+import { useEffect, useMemo, useState } from "react";
+import { Note, Scale } from "@tonaljs/tonal";
 import { Panel } from "@/components/ui/panel";
 import { ScopeCanvas } from "@/components/studio/scope-canvas";
 import { TunerMeter } from "@/components/studio/tuner-meter";
@@ -26,6 +26,26 @@ interface AnalysisPanelProps {
   onSetManualKeyScale: (key: string, scale: string) => void;
 }
 
+type LaneKind = "scale" | "arp";
+type LaneState = "active" | "cooling";
+
+interface IncomingLane {
+  key: string;
+  label: string;
+  reason: string;
+  confidence: number;
+  notes: string[];
+  kind: LaneKind;
+  order: number;
+}
+
+interface DisplayLane extends IncomingLane {
+  state: LaneState;
+  cooldownTicks: number;
+}
+
+const MAX_COOLDOWN_TICKS = 5;
+
 const TOLERANCE_PROFILES: Record<
   TunerTolerancePreset,
   { label: string; greenRangeCents: number; yellowRangeCents: number }
@@ -36,8 +56,8 @@ const TOLERANCE_PROFILES: Record<
 };
 
 const TEMPERAMENT_LABELS: Record<TunerTemperament, string> = {
-  equal: "Equal (12-TET)",
-  just: "Just (A-referenced)",
+  equal: "Equal",
+  just: "Just",
   pythagorean: "Pythagorean",
 };
 
@@ -66,109 +86,51 @@ export function AnalysisPanel({
   onSetAutoDetectKeyChanges,
   onSetManualKeyScale,
 }: AnalysisPanelProps) {
-  const [showTunerSettings, setShowTunerSettings] = useState(false);
-  const scaleLanes = useMemo(
-    () => recommendations.filter((item) => item.type === "scale").slice(0, 6),
+  const rawScaleLanes = useMemo(
+    () => recommendations.filter((item) => item.type === "scale").slice(0, 5),
     [recommendations]
   );
+  const featuredArpLane = useMemo(() => buildFeaturedArpLane(theoryContext), [theoryContext]);
   const compactRecommendations = useMemo(
     () => recommendations.filter((item) => item.type !== "scale").slice(0, 6),
     [recommendations]
   );
+  const incomingLanes = useMemo(() => {
+    const scaleLanes: IncomingLane[] = rawScaleLanes.map((lane, index) => ({
+      key: `scale-${lane.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      label: lane.label,
+      reason: lane.reason,
+      confidence: lane.confidence,
+      notes: notesFromScale(lane.label),
+      kind: "scale",
+      order: index + 1,
+    }));
+
+    return [featuredArpLane, ...scaleLanes];
+  }, [featuredArpLane, rawScaleLanes]);
+  const [displayLanes, setDisplayLanes] = useState<DisplayLane[]>(() =>
+    incomingLanes.map((lane) => ({
+      ...lane,
+      state: "active",
+      cooldownTicks: 0,
+    }))
+  );
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setDisplayLanes((previous) => mergeScaleLanes(previous, incomingLanes));
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [incomingLanes]);
 
   return (
-    <Panel title="Signal Lab" subtitle="Integrated scope + tuner with improv-ready scale lanes">
+    <Panel title="Signal Lab" subtitle="Tuner, theory assistant, and improv lines">
       <div className="grid gap-3 lg:grid-cols-[1.1fr_1fr]">
         <div className="rounded-xl border border-slate-800/80 bg-slate-950/60 p-3">
-          <p className="mb-2 text-xs uppercase tracking-wide text-slate-500">Scope + Circular Tuner</p>
+          <p className="mb-2 text-xs uppercase tracking-wide text-slate-500">Tuner</p>
           <div className="mx-auto max-w-[360px]">
             <div className="relative aspect-square overflow-hidden rounded-xl border border-slate-800/90 bg-slate-950/70">
-              <button
-                type="button"
-                onClick={() => setShowTunerSettings((value) => !value)}
-                className="absolute right-2 top-2 z-20 rounded-md border border-slate-700 bg-slate-900/90 p-1.5 text-slate-200 transition hover:border-cyan-400 hover:text-cyan-300"
-                aria-label="Tuner settings"
-                title="Tuner settings"
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" />
-                  <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1 1 0 0 1 0 1.4l-1 1a1 1 0 0 1-1.4 0l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a1 1 0 0 1-1 1h-1.4a1 1 0 0 1-1-1v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a1 1 0 0 1-1.4 0l-1-1a1 1 0 0 1 0-1.4l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a1 1 0 0 1-1-1v-1.4a1 1 0 0 1 1-1h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a1 1 0 0 1 0-1.4l1-1a1 1 0 0 1 1.4 0l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V4a1 1 0 0 1 1-1h1.4a1 1 0 0 1 1 1v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a1 1 0 0 1 1.4 0l1 1a1 1 0 0 1 0 1.4l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6h.2a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1h-.2a1 1 0 0 0-.9.6Z" />
-                </svg>
-              </button>
-              {showTunerSettings ? (
-                <div className="absolute right-2 top-12 z-20 w-64 rounded-lg border border-slate-700 bg-slate-950/95 p-3 shadow-xl shadow-slate-950/60">
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="text-xs uppercase tracking-wide text-slate-400">Tuner Calibration</p>
-                    <button
-                      type="button"
-                      onClick={() => setShowTunerSettings(false)}
-                      className="rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-300 hover:border-slate-500"
-                    >
-                      close
-                    </button>
-                  </div>
-                  <div className="grid gap-2">
-                    <label className="text-xs text-slate-300">
-                      Tolerance
-                      <select
-                        value={tunerSettings.tolerancePreset}
-                        onChange={(event) => {
-                          const preset = event.target.value as TunerTolerancePreset;
-                          const profile = TOLERANCE_PROFILES[preset];
-                          onUpdateTunerSettings({
-                            tolerancePreset: preset,
-                            greenRangeCents: profile.greenRangeCents,
-                            yellowRangeCents: profile.yellowRangeCents,
-                          });
-                        }}
-                        className="mt-1 w-full rounded border border-slate-700 bg-slate-900 px-2 py-1 text-xs"
-                      >
-                        {(Object.keys(TOLERANCE_PROFILES) as TunerTolerancePreset[]).map((preset) => (
-                          <option key={preset} value={preset}>
-                            {TOLERANCE_PROFILES[preset].label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="text-xs text-slate-300">
-                      Temperament
-                      <select
-                        value={tunerSettings.temperament}
-                        onChange={(event) =>
-                          onUpdateTunerSettings({
-                            temperament: event.target.value as TunerTemperament,
-                          })
-                        }
-                        className="mt-1 w-full rounded border border-slate-700 bg-slate-900 px-2 py-1 text-xs"
-                      >
-                        {(Object.keys(TEMPERAMENT_LABELS) as TunerTemperament[]).map((temperament) => (
-                          <option key={temperament} value={temperament}>
-                            {TEMPERAMENT_LABELS[temperament]}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="text-xs text-slate-300">
-                      A4 Reference
-                      <select
-                        value={tunerSettings.a4Hz}
-                        onChange={(event) =>
-                          onUpdateTunerSettings({
-                            a4Hz: Number(event.target.value) || 440,
-                          })
-                        }
-                        className="mt-1 w-full rounded border border-slate-700 bg-slate-900 px-2 py-1 text-xs"
-                      >
-                        {A4_OPTIONS.map((hz) => (
-                          <option key={hz} value={hz}>
-                            {hz} Hz
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                </div>
-              ) : null}
               <ScopeCanvas
                 data={frame?.waveform ?? []}
                 width={420}
@@ -185,9 +147,74 @@ export function AnalysisPanel({
                   />
                 </div>
               </div>
-              <div className="pointer-events-none absolute bottom-2 right-2 rounded-md border border-slate-700/80 bg-slate-900/80 px-2 py-1 text-right">
+
+              <div className="absolute left-2 top-2 z-20 h-16 w-32 rounded-md border border-slate-700/90 bg-slate-950/90 p-1.5">
+                <p className="text-[10px] uppercase tracking-wide text-slate-400">Tolerance</p>
+                <select
+                  value={tunerSettings.tolerancePreset}
+                  onChange={(event) => {
+                    const preset = event.target.value as TunerTolerancePreset;
+                    const profile = TOLERANCE_PROFILES[preset];
+                    onUpdateTunerSettings({
+                      tolerancePreset: preset,
+                      greenRangeCents: profile.greenRangeCents,
+                      yellowRangeCents: profile.yellowRangeCents,
+                    });
+                  }}
+                  className="mt-1 h-7 w-full rounded border border-slate-700 bg-slate-900 px-1 text-[11px] text-slate-100"
+                >
+                  {(Object.keys(TOLERANCE_PROFILES) as TunerTolerancePreset[]).map((preset) => (
+                    <option key={preset} value={preset}>
+                      {TOLERANCE_PROFILES[preset].label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="absolute right-2 top-2 z-20 h-16 w-32 rounded-md border border-slate-700/90 bg-slate-950/90 p-1.5">
+                <p className="text-[10px] uppercase tracking-wide text-slate-400">Temperament</p>
+                <select
+                  value={tunerSettings.temperament}
+                  onChange={(event) =>
+                    onUpdateTunerSettings({
+                      temperament: event.target.value as TunerTemperament,
+                    })
+                  }
+                  className="mt-1 h-7 w-full rounded border border-slate-700 bg-slate-900 px-1 text-[11px] text-slate-100"
+                >
+                  {(Object.keys(TEMPERAMENT_LABELS) as TunerTemperament[]).map((temperament) => (
+                    <option key={temperament} value={temperament}>
+                      {TEMPERAMENT_LABELS[temperament]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="absolute bottom-2 left-2 z-20 h-16 w-32 rounded-md border border-slate-700/90 bg-slate-950/90 p-1.5">
+                <p className="text-[10px] uppercase tracking-wide text-slate-400">A4 Ref</p>
+                <select
+                  value={tunerSettings.a4Hz}
+                  onChange={(event) =>
+                    onUpdateTunerSettings({
+                      a4Hz: Number(event.target.value) || 440,
+                    })
+                  }
+                  className="mt-1 h-7 w-full rounded border border-slate-700 bg-slate-900 px-1 text-[11px] text-slate-100"
+                >
+                  {A4_OPTIONS.map((hz) => (
+                    <option key={hz} value={hz}>
+                      {hz} Hz
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="pointer-events-none absolute bottom-2 right-2 z-20 h-16 w-32 rounded-md border border-slate-700/90 bg-slate-950/90 p-1.5">
                 <p className="text-[10px] uppercase tracking-wide text-slate-400">Pitch</p>
-                <p className="text-xs font-semibold text-slate-100">{formatHz(frame?.pitchHz ?? null)}</p>
+                <p className="mt-1 truncate text-sm font-semibold text-slate-100">
+                  {formatHz(frame?.pitchHz ?? null)}
+                </p>
+                <p className="text-[10px] text-slate-400">{frame?.note ?? "--"}</p>
               </div>
             </div>
           </div>
@@ -286,23 +313,36 @@ export function AnalysisPanel({
 
       <div className="mt-3 rounded-xl border border-slate-800/80 bg-slate-950/60 p-3">
         <p className="text-xs uppercase tracking-wide text-slate-500">Improv Scale Lanes</p>
-        {scaleLanes.length === 0 ? (
+        {displayLanes.length === 0 ? (
           <p className="mt-2 text-sm text-slate-400">
             Start audio or MIDI input to build stable scale lanes for this form section.
           </p>
         ) : (
           <div className="mt-2 space-y-2">
-            {scaleLanes.map((lane, index) => (
+            {displayLanes.map((lane) => (
               <div
-                key={`${lane.id}-${index}`}
-                className="rounded-lg border border-slate-800 bg-slate-900/70 p-2"
+                key={lane.key}
+                className={`rounded-lg border p-2 transition-all duration-700 ease-out ${
+                  lane.state === "cooling"
+                    ? "translate-y-1 border-slate-800/70 bg-slate-900/45 opacity-45"
+                    : "border-slate-800 bg-slate-900/70 opacity-100"
+                }`}
               >
                 <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${
+                      lane.kind === "arp"
+                        ? "border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-200"
+                        : "border-cyan-500/40 bg-cyan-500/10 text-cyan-200"
+                    }`}
+                  >
+                    {lane.kind}
+                  </span>
                   <span className="text-sm font-medium text-slate-100">{lane.label}</span>
                   <span className="text-xs text-slate-400">{Math.round(lane.confidence * 100)}%</span>
-                  {notesFromScale(lane.label).map((note) => (
+                  {lane.notes.slice(0, 8).map((note) => (
                     <span
-                      key={`${lane.id}-${note}`}
+                      key={`${lane.key}-${note}`}
                       className="rounded border border-slate-700 bg-slate-950 px-2 py-0.5 text-[11px] text-slate-200"
                     >
                       {note}
@@ -319,10 +359,6 @@ export function AnalysisPanel({
   );
 }
 
-function notesFromScale(scaleLabel: string): string[] {
-  return Scale.get(scaleLabel).notes.slice(0, 8);
-}
-
 function MiniMeta({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-2">
@@ -330,4 +366,129 @@ function MiniMeta({ label, value }: { label: string; value: string }) {
       <p className="mt-1 text-sm font-semibold text-slate-100">{value}</p>
     </div>
   );
+}
+
+function mergeScaleLanes(previous: DisplayLane[], incoming: IncomingLane[]): DisplayLane[] {
+  const previousByKey = new Map(previous.map((lane) => [lane.key, lane]));
+  const seen = new Set<string>();
+  const next: DisplayLane[] = [];
+
+  incoming.forEach((lane, index) => {
+    const prior = previousByKey.get(lane.key);
+    seen.add(lane.key);
+    next.push({
+      ...lane,
+      order: index,
+      state: "active",
+      cooldownTicks: 0,
+      confidence: blendConfidence(prior?.confidence ?? lane.confidence, lane.confidence, 0.4),
+    });
+  });
+
+  previous.forEach((lane) => {
+    if (seen.has(lane.key)) {
+      return;
+    }
+
+    const cooldownTicks = lane.cooldownTicks + 1;
+    const confidence = clamp(lane.confidence * 0.74, 0, 1);
+    if (cooldownTicks > MAX_COOLDOWN_TICKS || confidence < 0.16) {
+      return;
+    }
+
+    next.push({
+      ...lane,
+      state: "cooling",
+      cooldownTicks,
+      order: incoming.length + cooldownTicks,
+      confidence,
+    });
+  });
+
+  return next.sort((a, b) => {
+    if (a.state !== b.state) {
+      return a.state === "active" ? -1 : 1;
+    }
+    if (a.state === "active") {
+      return a.order - b.order;
+    }
+    if (a.cooldownTicks !== b.cooldownTicks) {
+      return a.cooldownTicks - b.cooldownTicks;
+    }
+    return a.order - b.order;
+  });
+}
+
+function buildFeaturedArpLane(context: TheoryContext): IncomingLane {
+  const root = detectChordRoot(context.chordGuess) || context.keyGuess || "C";
+  const quality = chordQuality(context.chordGuess);
+
+  let label = `${root} major #4 arpeggio line`;
+  let reason = "Lydian-style #4 color line for bright modern phrasing.";
+  let intervals = ["1P", "3M", "4A", "5P", "7M", "9M"];
+
+  if (quality === "dominant") {
+    label = `${root} dominant #4 arpeggio line`;
+    reason = "Classic dominant tension cell (3-#4-5-b7) for altered-to-inside release.";
+    intervals = ["1P", "3M", "4A", "5P", "7m", "9M"];
+  } else if (quality === "minor") {
+    label = `${root} minor 9 arpeggio line`;
+    reason = "Minor 9 arpeggio cell for melodic, inside modern jazz phrasing.";
+    intervals = ["1P", "3m", "5P", "7m", "9M", "11P"];
+  } else if (quality === "half-diminished") {
+    label = `${root} m7b5 chromatic arp line`;
+    reason = "Half-diminished cell with b5 and b7 for ii-V minor resolution color.";
+    intervals = ["1P", "3m", "5d", "7m", "9m", "11P"];
+  }
+
+  return {
+    key: `arp-${root}-${quality}`,
+    label,
+    reason,
+    confidence: 0.72,
+    notes: buildNotesFromIntervals(root, intervals),
+    kind: "arp",
+    order: 0,
+  };
+}
+
+function buildNotesFromIntervals(root: string, intervals: string[]): string[] {
+  return intervals
+    .map((interval) => Note.simplify(Note.transpose(root, interval)))
+    .filter((note) => note.length > 0);
+}
+
+function detectChordRoot(chordGuess: string): string | null {
+  const match = chordGuess.match(/^[A-G](?:#|b)?/);
+  if (!match) {
+    return null;
+  }
+  return Note.simplify(match[0]);
+}
+
+function chordQuality(chordGuess: string): "major" | "minor" | "dominant" | "half-diminished" {
+  const token = chordGuess.replace(/^[A-G](?:#|b)?/i, "").toLowerCase();
+  if (token.includes("m7b5") || token.includes("half-diminished") || token.includes("o/")) {
+    return "half-diminished";
+  }
+  if (token.includes("7") && !token.includes("maj") && !token.startsWith("m")) {
+    return "dominant";
+  }
+  if (token.startsWith("m") || token.includes("min")) {
+    return "minor";
+  }
+  return "major";
+}
+
+function notesFromScale(scaleLabel: string): string[] {
+  return Scale.get(scaleLabel).notes.slice(0, 8);
+}
+
+function blendConfidence(previous: number, next: number, weight: number): number {
+  const factor = clamp(weight, 0, 1);
+  return previous * (1 - factor) + next * factor;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }

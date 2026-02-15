@@ -17,9 +17,9 @@ import { exportChart } from "@/lib/theory/chart-export";
 import { useStudioStore } from "@/store/useStudioStore";
 import { SessionState, Subdivision } from "@/types/studio";
 
-type RightPanelId = "form" | "tempo" | "midi" | "session";
+type RightPanelId = "form" | "tempo";
 
-const DEFAULT_RIGHT_PANEL_ORDER: RightPanelId[] = ["form", "tempo", "midi", "session"];
+const DEFAULT_RIGHT_PANEL_ORDER: RightPanelId[] = ["form", "tempo"];
 
 export function StudioApp() {
   const frame = useStudioStore((state) => state.latestFrame);
@@ -291,78 +291,18 @@ export function StudioApp() {
           }}
         />
       ),
-      midi: (
-        <MidiPanel
-          supported={midi.supported}
-          connected={midi.connected}
-          connecting={midi.connecting}
-          devices={midi.devices}
-          events={midiEvents}
-          recording={recordingMidi}
-          recordedEvents={recordedEvents}
-          onConnect={() => {
-            void midi.connect();
-          }}
-          onDisconnect={midi.disconnect}
-          onToggleRecording={toggleMidiRecording}
-          onReplay={midi.replayRecorded}
-          onClearRecorded={clearRecordedEvents}
-          onQuantize={quantizeRecorded}
-        />
-      ),
-      session: (
-        <SessionPanel
-          sessionName={sessionName}
-          sessions={sessions}
-          saving={saving}
-          onSessionNameChange={setSessionName}
-          onSave={() => {
-            void saveCurrentSession();
-          }}
-          onRefresh={() => {
-            void refreshSessions();
-          }}
-          onLoad={(id) => {
-            void loadStoredSession(id);
-          }}
-          onDelete={(id) => {
-            void removeStoredSession(id);
-          }}
-          onExportJson={exportSessionJson}
-          onImportJson={(file) => {
-            void importSessionJson(file);
-          }}
-        />
-      ),
     }),
     [
       analysisSettings.targetTempoBpm,
-      clearRecordedEvents,
       downloadChartSheet,
-      exportSessionJson,
       frameHistory,
-      importSessionJson,
       insertFormSheetBar,
-      loadStoredSession,
       liveTempo,
-      midi,
-      midiEvents,
-      quantizeRecorded,
-      recordedEvents,
-      recordingMidi,
-      refreshSessions,
       removeFormSheetBar,
-      removeStoredSession,
-      saveCurrentSession,
-      saving,
-      sessionName,
-      sessions,
       setBarsPerPage,
       setFormDisplayMode,
-      setSessionName,
       theoryMemory,
       updateAnalysisSettings,
-      toggleMidiRecording,
       unlinkCompressedSectionRepeat,
       updateCompressedSectionBars,
       updateCompressedSectionLabel,
@@ -439,6 +379,50 @@ export function StudioApp() {
                 });
               }}
             />
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <MidiPanel
+                className="min-h-[420px] h-full"
+                supported={midi.supported}
+                connected={midi.connected}
+                connecting={midi.connecting}
+                devices={midi.devices}
+                events={midiEvents}
+                recording={recordingMidi}
+                recordedEvents={recordedEvents}
+                onConnect={() => {
+                  void midi.connect();
+                }}
+                onDisconnect={midi.disconnect}
+                onToggleRecording={toggleMidiRecording}
+                onReplay={midi.replayRecorded}
+                onClearRecorded={clearRecordedEvents}
+                onQuantize={quantizeRecorded}
+              />
+              <SessionPanel
+                className="min-h-[420px] h-full"
+                sessionName={sessionName}
+                sessions={sessions}
+                saving={saving}
+                onSessionNameChange={setSessionName}
+                onSave={() => {
+                  void saveCurrentSession();
+                }}
+                onRefresh={() => {
+                  void refreshSessions();
+                }}
+                onLoad={(id) => {
+                  void loadStoredSession(id);
+                }}
+                onDelete={(id) => {
+                  void removeStoredSession(id);
+                }}
+                onExportJson={exportSessionJson}
+                onImportJson={(file) => {
+                  void importSessionJson(file);
+                }}
+              />
+            </div>
           </div>
 
           <div className="space-y-3">
@@ -515,10 +499,6 @@ function rightPanelLabel(id: RightPanelId): string {
       return "Form Map";
     case "tempo":
       return "Tempo";
-    case "midi":
-      return "MIDI";
-    case "session":
-      return "Session";
     default:
       return id;
   }

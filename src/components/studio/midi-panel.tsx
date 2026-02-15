@@ -3,6 +3,7 @@ import { noteNumberToName } from "@/lib/audio/note";
 import { MidiDeviceInfo, MidiEvent, RecordedMidiEvent, Subdivision } from "@/types/studio";
 
 interface MidiPanelProps {
+  className?: string;
   supported: boolean;
   connected: boolean;
   connecting: boolean;
@@ -21,6 +22,7 @@ interface MidiPanelProps {
 const QUANTIZE_CHOICES: Subdivision[] = ["quarter", "eighth", "triplet", "sixteenth"];
 
 export function MidiPanel({
+  className,
   supported,
   connected,
   connecting,
@@ -36,7 +38,11 @@ export function MidiPanel({
   onQuantize,
 }: MidiPanelProps) {
   return (
-    <Panel title="MIDI Studio" subtitle="Device monitoring, synth playback, phrase recording">
+    <Panel
+      title="MIDI Studio"
+      subtitle="Device monitoring, synth playback, phrase recording"
+      className={className}
+    >
       <div className="flex flex-wrap gap-2">
         <button
           type="button"

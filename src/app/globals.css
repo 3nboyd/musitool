@@ -38,62 +38,59 @@ textarea {
   font-family: var(--font-plex-mono), monospace;
 }
 
-@keyframes ibPixelIdleFloat {
+@keyframes ibPixelMarioIdle {
   0%,
   100% {
     transform: translateY(0);
   }
   50% {
-    transform: translateY(-2px);
+    transform: translateY(-1px);
   }
 }
 
-@keyframes ibPixelChillSway {
+@keyframes ibPixelMarioSleep {
   0%,
   100% {
-    transform: translateX(0) rotate(0deg);
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(1px);
+  }
+}
+
+@keyframes ibPixelMarioDance {
+  0%,
+  100% {
+    transform: translateX(0) translateY(0);
   }
   25% {
-    transform: translateX(-1px) rotate(-1deg);
+    transform: translateX(-2px) translateY(-1px);
+  }
+  50% {
+    transform: translateX(0) translateY(0);
   }
   75% {
-    transform: translateX(1px) rotate(1deg);
+    transform: translateX(2px) translateY(-1px);
   }
 }
 
-@keyframes ibPixelDance {
+@keyframes ibPixelLegLeftStep {
   0%,
   100% {
-    transform: translateY(0) translateX(0);
-  }
-  25% {
-    transform: translateY(-3px) translateX(-2px);
+    transform: translateY(0);
   }
   50% {
-    transform: translateY(-1px) translateX(2px);
-  }
-  75% {
-    transform: translateY(-4px) translateX(1px);
+    transform: translateY(-1px);
   }
 }
 
-@keyframes ibPixelLegLeft {
+@keyframes ibPixelLegRightStep {
   0%,
   100% {
-    transform: perspective(220px) rotateX(14deg) rotateZ(10deg);
+    transform: translateY(-1px);
   }
   50% {
-    transform: perspective(220px) rotateX(4deg) rotateZ(-8deg);
-  }
-}
-
-@keyframes ibPixelLegRight {
-  0%,
-  100% {
-    transform: perspective(220px) rotateX(14deg) rotateZ(-10deg);
-  }
-  50% {
-    transform: perspective(220px) rotateX(4deg) rotateZ(8deg);
+    transform: translateY(0);
   }
 }
 
@@ -128,23 +125,23 @@ textarea {
 
 .ib-bear-group {
   transform-origin: 50% 66%;
-  animation: ibPixelIdleFloat 3.6s ease-in-out infinite;
+  animation: ibPixelMarioIdle 1200ms steps(2, end) infinite;
 }
 
 .ib-pixel-leg-left,
 .ib-pixel-leg-right {
   transform-origin: center top;
-  animation-duration: 2.4s;
-  animation-timing-function: ease-in-out;
+  animation-duration: 700ms;
+  animation-timing-function: steps(2, end);
   animation-iteration-count: infinite;
 }
 
 .ib-pixel-leg-left {
-  animation-name: ibPixelLegLeft;
+  animation-name: ibPixelLegLeftStep;
 }
 
 .ib-pixel-leg-right {
-  animation-name: ibPixelLegRight;
+  animation-name: ibPixelLegRightStep;
 }
 
 .ib-zzz {
@@ -159,25 +156,25 @@ textarea {
 }
 
 .ib-mode-chill .ib-bear-group {
-  animation: ibPixelChillSway 2.8s ease-in-out infinite;
+  animation: ibPixelMarioIdle 1100ms steps(2, end) infinite;
 }
 
 .ib-mode-dance .ib-bear-group {
-  animation: ibPixelDance var(--ib-step-ms, 520ms) cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  animation: ibPixelMarioDance var(--ib-step-ms, 520ms) steps(4, end) infinite;
 }
 
 .ib-mode-dance .ib-pixel-leg-left,
 .ib-mode-dance .ib-pixel-leg-right {
-  animation-duration: calc(var(--ib-step-ms, 520ms) * 0.95);
+  animation-duration: calc(var(--ib-step-ms, 520ms) * 0.8);
 }
 
 .ib-mode-sleep .ib-bear-group {
-  animation: ibPixelIdleFloat 4.6s ease-in-out infinite;
+  animation: ibPixelMarioSleep 1800ms steps(2, end) infinite;
 }
 
 .ib-mode-sleep .ib-pixel-leg-left,
 .ib-mode-sleep .ib-pixel-leg-right {
-  animation-duration: 4.2s;
+  animation: none;
   opacity: 0.88;
 }
 

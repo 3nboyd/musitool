@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Note, Scale } from "@tonaljs/tonal";
 import { Panel } from "@/components/ui/panel";
+import { PixelBearMascot } from "@/components/studio/pixel-bear-mascot";
 import { ScopeCanvas } from "@/components/studio/scope-canvas";
 import { TunerMeter } from "@/components/studio/tuner-meter";
 import {
@@ -46,6 +47,7 @@ interface DisplayLane extends IncomingLane {
 }
 
 const COOLDOWN_DURATION_MS = 18000;
+const SLEEP_THRESHOLD_MS = 5600;
 
 const TOLERANCE_PROFILES: Record<
   TunerTolerancePreset,
@@ -117,6 +119,9 @@ export function AnalysisPanel({
 
     return [featuredArpLane, ...scaleLanes];
   }, [featuredArpLane, rawScaleLanes]);
+  const lastNoteRef = useRef<string | null>(null);
+  const [lastActivityAt, setLastActivityAt] = useState<number>(() => Date.now());
+  const [clockTick, setClockTick] = useState<number>(() => Date.now());
   const [displayLanes, setDisplayLanes] = useState<DisplayLane[]>(() =>
     incomingLanes.map((lane) => ({
       ...lane,
@@ -134,6 +139,47 @@ export function AnalysisPanel({
     return () => window.cancelAnimationFrame(frame);
   }, [incomingLanes]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setClockTick(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const note = frame?.note ?? null;
+    const noteChanged = note !== null && note !== lastNoteRef.current;
+    if (noteChanged) {
+      lastNoteRef.current = note;
+    }
+
+    const hasSignal = (frame?.rms ?? 0) >= 0.018 || noteChanged;
+    if (!hasSignal) {
+      return;
+    }
+
+    const raf = window.requestAnimationFrame(() => {
+      setLastActivityAt(Date.now());
+    });
+
+    return () => window.cancelAnimationFrame(raf);
+  }, [frame?.note, frame?.rms]);
+
+  const mascotMode = useMemo(() => {
+    const inactiveMs = clockTick - lastActivityAt;
+    if (!frame || inactiveMs > SLEEP_THRESHOLD_MS) {
+      return "sleep" as const;
+    }
+
+    const bpm = frame.bpm ?? null;
+    if (bpm && bpm >= 92) {
+      return "dance" as const;
+    }
+
+    return "chill" as const;
+  }, [clockTick, frame, lastActivityAt]);
+
   return (
     <Panel title="Signal Lab">
       <div className="grid gap-3 lg:grid-cols-[1.1fr_1fr]">
@@ -141,6 +187,9 @@ export function AnalysisPanel({
           <p className="mb-2 text-xs uppercase tracking-wide text-slate-500">Tuner</p>
           <div className="mx-auto max-w-[360px]">
             <div className="relative aspect-square overflow-hidden rounded-xl border border-slate-800/90 bg-slate-950/70">
+              <div className="pointer-events-none absolute left-1/2 top-0 z-30 -translate-x-1/2 -translate-y-[34%]">
+                <PixelBearMascot mode={mascotMode} bpm={frame?.bpm ?? null} />
+              </div>
               <ScopeCanvas
                 data={frame?.waveform ?? []}
                 width={420}

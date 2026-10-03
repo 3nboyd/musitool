@@ -17,6 +17,10 @@ All notable changes to this project will be documented in this file.
 
 - Updated direct production dependencies to remove all known production audit findings reported during packaging.
 
+### Fixed
+
+- Pinned npm 11 in CI so clean installs use the same lockfile implementation as local development.
+
 ## [0.1.0] - 2026-02-15
 
 ### Added

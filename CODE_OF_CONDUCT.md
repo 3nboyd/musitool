@@ -2,7 +2,7 @@
 
 ## Our commitment
 
-We are committed to making participation in the ImproviBuddy community a welcoming, safe, and positive experience for everyone, regardless of background, identity, experience level, or personal characteristics.
+We are committed to making participation in the MusiTool community a welcoming, safe, and positive experience for everyone, regardless of background, identity, experience level, or personal characteristics.
 
 ## Expected behavior
 

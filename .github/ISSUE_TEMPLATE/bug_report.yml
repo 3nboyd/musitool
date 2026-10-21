@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible ImproviBuddy problem.
+description: Report a reproducible MusiTool problem.
 title: "[Bug]: "
 labels:
   - bug

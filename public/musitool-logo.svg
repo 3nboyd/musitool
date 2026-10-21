@@ -1,12 +1,12 @@
 <svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" fill="none">
   <defs>
-    <linearGradient id="ib_bg_px" x1="18" y1="18" x2="238" y2="238" gradientUnits="userSpaceOnUse">
+    <linearGradient id="musitool_bg_px" x1="18" y1="18" x2="238" y2="238" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#7dd3fc"/>
       <stop offset="1" stop-color="#38bdf8"/>
     </linearGradient>
   </defs>
   <rect x="12" y="12" width="232" height="232" rx="52" fill="#bae6fd"/>
-  <rect x="12" y="12" width="232" height="232" rx="52" stroke="url(#ib_bg_px)" stroke-width="4" stroke-opacity="0.65"/>
+  <rect x="12" y="12" width="232" height="232" rx="52" stroke="url(#musitool_bg_px)" stroke-width="4" stroke-opacity="0.65"/>
 
   <g shape-rendering="crispEdges">
     <rect x="182" y="38" width="8" height="28" fill="#0284c7"/>

@@ -1,14 +1,14 @@
 <p align="center">
-  <img src="public/improvibuddy-logo.svg" width="360" alt="ImproviBuddy logo">
+  <img src="public/musitool-logo.svg" width="360" alt="MusiTool logo">
 </p>
 
-# ImproviBuddy
+# MusiTool
 
 [![CI](https://github.com/3nboyd/musitool/actions/workflows/ci.yml/badge.svg)](https://github.com/3nboyd/musitool/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
 
-ImproviBuddy is a local-first music analysis and improvisation workspace that runs in the browser. The repository retains the historical `musitool` name.
+MusiTool is a local-first music analysis and improvisation workspace that runs in the browser.
 
 ## Features
 
@@ -21,7 +21,7 @@ ImproviBuddy is a local-first music analysis and improvisation workspace that ru
 - Web MIDI input, event monitoring, synth playback, recording, replay, and quantization
 - Local session persistence with IndexedDB
 - Session import and export, including chart-oriented PDF output
-- Responsive pixel-art studio interface with the ImproviBuddy mascot
+- Responsive pixel-art studio interface with the MusiTool mascot
 
 ## Technology
 
@@ -109,4 +109,4 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening an issue or pull request.
 
 ## License
 
-ImproviBuddy is available under the [MIT License](LICENSE).
+MusiTool is available under the [MIT License](LICENSE).

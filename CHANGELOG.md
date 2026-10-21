@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Updated Next.js, jsPDF, Vitest, Tailwind CSS, Dexie, Zustand, and supporting development packages.
-- Standardized the public product name as ImproviBuddy while retaining the historical repository name.
+- Standardized MusiTool branding across the application, documentation, and project assets.
 
 ### Security
 

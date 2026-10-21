@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for helping improve ImproviBuddy.
+Thank you for helping improve MusiTool.
 
 ## Development workflow
 

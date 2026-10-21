@@ -1,6 +1,6 @@
 # Architecture
 
-ImproviBuddy is a Next.js application whose interactive studio runs primarily in the browser.
+MusiTool is a Next.js application whose interactive studio runs primarily in the browser.
 
 ## Runtime overview
 

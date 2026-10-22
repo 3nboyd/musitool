@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Maintenance
+
+- Updated source-map-js to 1.2.2 to address GHSA-68fv-2mgg-jv7q; the production dependency audit reports no vulnerabilities.
+- Clarified audio-analysis terms, browser permissions, session backups, and production setup.
+- Verified lint, TypeScript checks, 18 tests, and the production build; checked local session saving and persistence after reload.
+
 ### Added
 
 - Public repository contribution guidance, security policy, architecture documentation, CI, issue templates, and automated dependency updates.

@@ -96,12 +96,9 @@ The application can run on any host that supports a Next.js production build. Fo
 
 Microphone access requires HTTPS outside `localhost`. No backend or external database is required.
 
-## Current limitations
+## Workspace scope
 
-- No cloud sync or user accounts
-- No real-time collaboration links
-- No SoundFont import pipeline
-- No full DAW project export
+MusiTool brings audio analysis, practice tools, and session storage together in one browser workspace. Export sessions as JSON to back them up or move them between browsers.
 
 ## Contributing
 

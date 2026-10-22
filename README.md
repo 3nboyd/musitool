@@ -28,7 +28,6 @@ MusiTool is a local-first music analysis and improvisation workspace that runs i
 - Node.js 22 or later
 - npm 11 or later
 - A modern desktop browser
-- HTTPS or `localhost` for microphone and MIDI permissions
 
 ## Quick start
 
@@ -60,7 +59,9 @@ Use **Export JSON** in the session panel to save a backup. To restore it in this
 
 ## Browser support
 
-Chrome and Edge provide the broadest support, including Web MIDI. Firefox and Safari support the main audio and theory workflows, but MIDI availability depends on the browser and operating system.
+Run the app on `localhost` or an HTTPS site, then grant microphone or MIDI access when you use those tools. Plain HTTP on another host does not provide the secure context these permissions require.
+
+Chrome and Edge provide the broadest support, including Web MIDI. Firefox and Safari support the main audio and theory workflows; MIDI availability depends on the browser and operating system. You can also analyze an audio file without granting microphone access.
 
 ## Technology
 
@@ -101,7 +102,7 @@ Open [http://localhost:3000](http://localhost:3000). The application can also ru
 2. Keep the detected Next.js defaults.
 3. Deploy without environment variables.
 
-Microphone access requires HTTPS outside `localhost`. No backend or external database is required.
+No backend or external database is required. See [Browser support](#browser-support) for microphone and MIDI setup.
 
 ## Workspace scope
 

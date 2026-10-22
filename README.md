@@ -23,15 +23,6 @@ MusiTool is a local-first music analysis and improvisation workspace that runs i
 - Session import and export, including chart-oriented PDF output
 - Responsive pixel-art studio interface with the MusiTool mascot
 
-## Technology
-
-- Next.js 16 App Router and React 19
-- TypeScript and Tailwind CSS
-- Zustand for application state
-- Dexie and IndexedDB for local persistence
-- Web Audio API, Web MIDI API, Pitchy, Meyda, and Tonal
-- Vitest and Testing Library
-
 ## Requirements
 
 - Node.js 22 or later
@@ -70,6 +61,15 @@ Browser permissions remain under the user's control. Clearing site data removes 
 ## Browser support
 
 Chrome and Edge provide the broadest support, including Web MIDI. Firefox and Safari support the main audio and theory workflows, but MIDI availability depends on the browser and operating system.
+
+## Technology
+
+- Next.js 16 App Router and React 19
+- TypeScript and Tailwind CSS
+- Zustand for application state
+- Dexie and IndexedDB for local persistence
+- Web Audio API, Web MIDI API, Pitchy, Meyda, and Tonal
+- Vitest and Testing Library
 
 ## Project structure
 

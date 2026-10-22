@@ -14,11 +14,11 @@ MusiTool is a local-first music analysis and improvisation workspace that runs i
 
 - Live microphone or audio-file analysis
 - Oscilloscope and spectrum visualizations
-- Pitch, note, confidence, tuner cents, and BPM estimates
-- Key, scale, and chord hypotheses with ranked theory recommendations
+- Pitch and note estimates, tuning offset in cents, analysis confidence, and tempo (BPM)
+- Suggested keys, scales, and chords, ranked by how well they fit the input
 - Editable form sheet and compressed 32-bar form view
 - Advanced metronome with accents, subdivisions, swing, count-in, and tap tempo
-- Web MIDI input, event monitoring, synth playback, recording, replay, and quantization
+- Web MIDI input, event monitoring, synth playback, recording, replay, and snapping recorded notes to a timing grid
 - Local session persistence with IndexedDB
 - Session import and export, including chart-oriented PDF output
 - Responsive pixel-art studio interface with the MusiTool mascot

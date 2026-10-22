@@ -56,7 +56,7 @@ The test suite covers note conversion, metronome timing, MIDI quantization, Inde
 
 Audio analysis, theory inference, MIDI processing, and session storage run locally in the browser. The application has no account system, analytics service, advertising SDK, or application database server. Saved sessions stay in the browser's IndexedDB unless the user exports them.
 
-Browser permissions remain under the user's control. Clearing site data removes locally saved sessions, so export important work before clearing browser storage.
+Use **Export JSON** in the session panel to save a backup. To restore it in this or another browser, choose **Import JSON** and select the saved file. Export important sessions before clearing site data, which removes browser-stored sessions. Browser permissions remain under your control.
 
 ## Browser support
 

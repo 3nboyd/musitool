@@ -88,7 +88,14 @@ See [Architecture](docs/ARCHITECTURE.md) for the runtime data flow and module bo
 
 ## Production deployment
 
-The application can run on any host that supports a Next.js production build. For Vercel:
+To run a production build locally:
+
+```bash
+npm run build
+npm start
+```
+
+Open [http://localhost:3000](http://localhost:3000). The application can also run on any host that supports a Next.js production build. For Vercel:
 
 1. Import `3nboyd/musitool`.
 2. Keep the detected Next.js defaults.

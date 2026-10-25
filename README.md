@@ -10,6 +10,12 @@
 
 MusiTool is a local-first music analysis and improvisation workspace that runs in the browser.
 
+![MusiTool studio analyzing audio, with the tuner, theory suggestions, form map, tempo coach, MIDI tools, and a saved session](docs/screenshots/studio-overview.png)
+
+Analyze a phrase, explore scales and chords, and keep a practice chart alongside your session.
+
+[Explore the screens](#screenshots) · [Run locally](#quick-start) · [Try the example session](#example-session)
+
 ## Features
 
 - Live microphone or audio-file analysis
@@ -22,6 +28,41 @@ MusiTool is a local-first music analysis and improvisation workspace that runs i
 - Local session persistence with IndexedDB
 - Session import and export, including chart-oriented PDF output
 - Responsive pixel-art studio interface with the MusiTool mascot
+
+## Screenshots
+
+Captured from the running application with a synthesized audio file and an imported example practice session.
+
+### Signal Lab
+
+The tuner shows pitch and tuning offset alongside key and chord estimates, note prompts, and improvisation scale lanes. This capture analyzes a synthesized C4 tone through **Analyze Audio File**.
+
+![Signal Lab showing a C4 waveform, pitch at 261.63 Hz, tuning offset, and scale suggestions](docs/screenshots/signal-lab.png)
+
+### Form Map
+
+Keep repeated sections compact, edit the chord sequence, or switch to an expanded bar-by-bar chart. Export the chart as TXT, PDF, iRealPro, or MusicXML.
+
+![Compressed Form Map showing a 32-bar example chart with repeated A sections and a B section](docs/screenshots/form-map-compressed.png)
+
+<details>
+<summary>See the expanded 32-bar chart</summary>
+
+![Expanded Form Map with individual chord fields and insert and remove controls for all 32 bars](docs/screenshots/form-map-expanded.png)
+
+</details>
+
+### MIDI and sessions
+
+Replay and quantize an imported phrase, then save the session locally or export a JSON backup. The example below contains an imported MIDI phrase; no MIDI hardware is connected.
+
+![MIDI Studio with an imported 16-event phrase beside Session Manager with a saved C major practice session](docs/screenshots/midi-and-sessions.png)
+
+## Example session
+
+Download [c-major-practice.json](docs/examples/c-major-practice.json), run MusiTool, and choose **Import JSON** in **Session Manager**. The example includes a 32-bar chord chart and a short MIDI phrase for replay and quantization. Choose **Save Session** to keep a local copy.
+
+To see the tuner and theory analysis respond, choose **Analyze Audio File** with your own audio or **Analyze Microphone**. Session files contain the chart, settings, and recorded MIDI events; they do not contain audio recordings.
 
 ## Requirements
 

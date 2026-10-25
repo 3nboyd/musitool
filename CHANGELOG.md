@@ -12,6 +12,9 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- README screenshot gallery covering the studio overview, Signal Lab, compressed and expanded Form Map, MIDI tools, and session storage.
+- Importable C major practice session with a 32-bar chord chart and a short example MIDI phrase.
+
 - Public repository contribution guidance, security policy, architecture documentation, CI, issue templates, and automated dependency updates.
 
 ### Changed
